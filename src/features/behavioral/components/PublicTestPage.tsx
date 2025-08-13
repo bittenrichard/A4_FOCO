@@ -1,5 +1,4 @@
-// Caminho: src/features/behavioral/components/PublicTestPage.tsx
-// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
+// Local: src/features/behavioral/components/PublicTestPage.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ADJECTIVES_STEP_1, ADJECTIVES_STEP_2 } from '../data/questions';
@@ -31,10 +30,10 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleted, setIsCompleted] = useState(false);
     
-    // MELHORIA 2: Referência para o topo da página para o scroll
+    // --- AJUSTE APLICADO AQUI ---
+    // Criamos uma referência para o elemento no topo da página.
     const pageTopRef = useRef<HTMLDivElement>(null);
 
-    // --- MELHORIA 1: Mínimo de 6, sem máximo ---
     const SELECTIONS_MINIMUM = 6;
 
     useEffect(() => {
@@ -61,24 +60,22 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
         if (currentAnswers.includes(adjective)) {
             setAnswers(currentAnswers.filter(a => a !== adjective));
         } else {
-            // --- MELHORIA 1: Removemos a verificação de limite máximo ---
             setAnswers([...currentAnswers, adjective]);
         }
     };
 
     const handleNextStep = () => {
-        // --- MELHORIA 1: Verificação de mínimo de 6 ---
         if (currentAnswers.length < SELECTIONS_MINIMUM) {
             alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos.`);
             return;
         }
         setStep(2);
-        // --- MELHORIA 2: Scroll para o topo ---
+        // --- AJUSTE APLICADO AQUI ---
+        // Ao avançar, mandamos a página rolar suavemente para o topo.
         pageTopRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const handleSubmit = async () => {
-        // --- MELHORIA 1: Verificação de mínimo de 6 ---
         if (currentAnswers.length < SELECTIONS_MINIMUM) {
             alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos.`);
             return;
@@ -117,12 +114,13 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
         );
     }
 
-    // --- MELHORIA 1: Lógica para a barra de progresso e mensagem ---
     const progress = step === 1 
         ? Math.min(50, (currentAnswers.length / SELECTIONS_MINIMUM) * 50) 
         : 50 + Math.min(50, (currentAnswers.length / SELECTIONS_MINIMUM) * 50);
 
     return (
+        // --- AJUSTE APLICADO AQUI ---
+        // A referência é atribuída ao container principal.
         <div className="min-h-screen bg-gray-100 p-4 sm:p-8 flex items-center justify-center" ref={pageTopRef}>
             <div className="max-w-4xl w-full mx-auto bg-white p-6 sm:p-8 rounded-lg shadow-lg">
                 <h1 className="text-2xl font-bold text-gray-800 text-center">Teste de Perfil Comportamental</h1>
@@ -134,7 +132,6 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
                 <div className="bg-gray-50 p-6 rounded-lg border">
                     <h2 className="text-lg font-semibold text-gray-900">{step === 1 ? 'Como os outros te veem?' : 'Como você se vê?'}</h2>
                     <p className="text-sm text-gray-600 mt-1">{step === 1 ? 'Na sua percepção, marque os adjetivos que descrevem como os outros pensam que você deveria ser.' : 'Agora, marque os adjetivos que melhor te representam.'}</p>
-                    {/* --- MELHORIA 1: Mensagem atualizada --- */}
                     <p className="mt-4 font-bold text-indigo-700">
                         Selecione no mínimo {SELECTIONS_MINIMUM} opções. ({currentAnswers.length} selecionadas)
                     </p>

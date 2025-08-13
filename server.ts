@@ -1,5 +1,4 @@
-// Caminho: server.ts
-// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
+// Local: server.ts
 
 import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
@@ -658,6 +657,7 @@ app.post('/api/behavioral-test/generate', async (req: Request, res: Response) =>
   }
 });
 
+// --- AJUSTE APLICADO AQUI ---
 app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
   const { testId, responses } = req.body;
   if (!testId || !responses) {
@@ -665,25 +665,25 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
   }
 
   try {
-    // BUGFIX: A resposta do PATCH do Baserow não retorna os campos de link (candidato, recrutador).
-    // Primeiro, atualizamos o registro.
+    // 1. Buscamos o registro ANTES de atualizar para garantir que temos os IDs do candidato e recrutador.
+    const initialTestEntry = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
+
+    if (!initialTestEntry || !initialTestEntry.candidato || !initialTestEntry.recrutador) {
+        throw new Error(`Não foi possível encontrar os dados do teste ID ${testId} antes da atualização.`);
+    }
+    
+    // 2. Agora, atualizamos o registro com as respostas e o novo status.
     await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
       data_de_resposta: new Date().toISOString(),
       status: 'Processando',
       respostas: JSON.stringify(responses),
     });
-    
-    // Depois, buscamos o registro completo para ter todas as informações necessárias.
-    const fullTestEntry = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
 
-    if (!fullTestEntry || !fullTestEntry.candidato || !fullTestEntry.recrutador) {
-        throw new Error(`Não foi possível encontrar os dados completos para o teste ID ${testId} após a atualização.`);
-    }
-
+    // 3. Montamos o payload para o webhook com os dados que buscamos no passo 1.
     const webhookPayload = {
-      testId: fullTestEntry.id,
-      candidateId: fullTestEntry.candidato[0].id,
-      recruiterId: fullTestEntry.recrutador[0].id,
+      testId: initialTestEntry.id,
+      candidateId: initialTestEntry.candidato[0].id,
+      recruiterId: initialTestEntry.recrutador[0].id,
       responses,
     };
 
@@ -724,7 +724,6 @@ app.get('/api/behavioral-test/results/recruiter/:recruiterId', async (req: Reque
     return res.status(400).json({ error: 'ID do recrutador é obrigatório.' });
   }
   try {
-    // Adiciona ordenação para mostrar os mais recentes primeiro
     const { results } = await baserowServer.get(TESTE_COMPORTAMENTAL_TABLE_ID, `?filter__recrutador__link_row_has=${recruiterId}&order_by=-data_de_resposta`);
     res.json({ success: true, data: results || [] });
   } catch (error: any) {
