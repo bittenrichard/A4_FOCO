@@ -665,21 +665,19 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
   }
 
   try {
-    // 1. Buscamos o registro ANTES de atualizar para garantir que temos os IDs do candidato e recrutador.
     const initialTestEntry = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
-
-    if (!initialTestEntry || !initialTestEntry.candidato || !initialTestEntry.recrutador) {
-        throw new Error(`Não foi possível encontrar os dados do teste ID ${testId} antes da atualização.`);
+    
+    // --- NOVA VALIDAÇÃO MAIS ROBUSTA ---
+    if (!initialTestEntry || !initialTestEntry.candidato || initialTestEntry.candidato.length === 0 || !initialTestEntry.recrutador || initialTestEntry.recrutador.length === 0) {
+        throw new Error(`Dados de candidato/recrutador não encontrados para o teste ID ${testId}.`);
     }
     
-    // 2. Agora, atualizamos o registro com as respostas e o novo status.
     await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
       data_de_resposta: new Date().toISOString(),
       status: 'Processando',
       respostas: JSON.stringify(responses),
     });
 
-    // 3. Montamos o payload para o webhook com os dados que buscamos no passo 1.
     const webhookPayload = {
       testId: initialTestEntry.id,
       candidateId: initialTestEntry.candidato[0].id,
@@ -701,6 +699,7 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
     res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
   }
 });
+
 
 app.get('/api/public/behavioral-test/:testId', async (req: Request, res: Response) => {
     const { testId } = req.params;
@@ -752,3 +751,4 @@ app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Respons
 app.listen(port, () => {
   console.log(`Backend rodando em http://localhost:${port}`);
 });
+}

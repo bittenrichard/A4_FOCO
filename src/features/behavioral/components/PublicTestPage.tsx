@@ -30,11 +30,19 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleted, setIsCompleted] = useState(false);
     
-    // --- AJUSTE APLICADO AQUI ---
-    // Criamos uma referência para o elemento no topo da página.
     const pageTopRef = useRef<HTMLDivElement>(null);
 
     const SELECTIONS_MINIMUM = 6;
+
+    // --- AJUSTE APLICADO AQUI ---
+    // Este "efeito" observa a variável 'step'.
+    // Quando o 'step' muda para 2, o código dentro dele é executado.
+    useEffect(() => {
+        if (step === 2) {
+            // Rola suavemente para o topo da página.
+            pageTopRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [step]); // A dependência [step] garante que isso só rode quando o passo mudar.
 
     useEffect(() => {
         const fetchTestData = async () => {
@@ -69,10 +77,8 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
             alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos.`);
             return;
         }
+        // Apenas atualiza o estado. A rolagem agora é tratada pelo useEffect.
         setStep(2);
-        // --- AJUSTE APLICADO AQUI ---
-        // Ao avançar, mandamos a página rolar suavemente para o topo.
-        pageTopRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const handleSubmit = async () => {
@@ -119,8 +125,6 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
         : 50 + Math.min(50, (currentAnswers.length / SELECTIONS_MINIMUM) * 50);
 
     return (
-        // --- AJUSTE APLICADO AQUI ---
-        // A referência é atribuída ao container principal.
         <div className="min-h-screen bg-gray-100 p-4 sm:p-8 flex items-center justify-center" ref={pageTopRef}>
             <div className="max-w-4xl w-full mx-auto bg-white p-6 sm:p-8 rounded-lg shadow-lg">
                 <h1 className="text-2xl font-bold text-gray-800 text-center">Teste de Perfil Comportamental</h1>
