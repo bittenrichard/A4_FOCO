@@ -665,13 +665,15 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
   }
 
   try {
+    // BUGFIX: A resposta do PATCH do Baserow não retorna os campos de link (candidato, recrutador).
+    // Primeiro, atualizamos o registro.
     await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
       data_de_resposta: new Date().toISOString(),
       status: 'Processando',
       respostas: JSON.stringify(responses),
     });
     
-    // CORREÇÃO: Após atualizar, buscamos o registro completo para ter todas as informações
+    // Depois, buscamos o registro completo para ter todas as informações necessárias.
     const fullTestEntry = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
 
     if (!fullTestEntry || !fullTestEntry.candidato || !fullTestEntry.recrutador) {
@@ -722,6 +724,7 @@ app.get('/api/behavioral-test/results/recruiter/:recruiterId', async (req: Reque
     return res.status(400).json({ error: 'ID do recrutador é obrigatório.' });
   }
   try {
+    // Adiciona ordenação para mostrar os mais recentes primeiro
     const { results } = await baserowServer.get(TESTE_COMPORTAMENTAL_TABLE_ID, `?filter__recrutador__link_row_has=${recruiterId}&order_by=-data_de_resposta`);
     res.json({ success: true, data: results || [] });
   } catch (error: any) {

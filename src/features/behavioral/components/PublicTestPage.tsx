@@ -31,7 +31,7 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isCompleted, setIsCompleted] = useState(false);
     
-    // Referência para o topo da página para o scroll
+    // MELHORIA 2: Referência para o topo da página para o scroll
     const pageTopRef = useRef<HTMLDivElement>(null);
 
     // --- MELHORIA 1: Mínimo de 6, sem máximo ---
