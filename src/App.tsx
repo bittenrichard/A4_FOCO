@@ -1,6 +1,7 @@
-// Local: src/App.tsx
+// Caminho: src/App.tsx
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
 
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from './features/auth/hooks/useAuth';
 import { useNavigation } from './shared/hooks/useNavigation';
 import LoginPage from './features/auth/components/LoginPage';
@@ -18,10 +19,10 @@ import { Loader2 } from 'lucide-react';
 import CandidateDatabasePage from './features/database/components/CandidateDatabasePage';
 import AgendaPage from './features/agenda/components/AgendaPage';
 import { useDataStore } from './shared/store/useDataStore';
-
-// IMPORTAÇÕES DO DndProvider e HTML5Backend
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import BehavioralTestPage from './features/behavioral/components/BehavioralTestPage';
+import BehavioralResultPage from './features/behavioral/components/BehavioralResultPage';
 
 const LoadingSpinner: React.FC = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50"><div className="text-center"><Loader2 className="mx-auto h-12 w-12 text-indigo-600 animate-spin" /><h2 className="mt-6 text-xl font-semibold text-gray-800">Carregando...</h2><p className="mt-2 text-gray-500">Estamos preparando tudo para você.</p></div></div>
@@ -31,9 +32,11 @@ function App() {
   const { profile, isAuthenticated, isLoading: isAuthLoading, error: authError, signIn, signOut, signUp } = useAuth();
   const { currentPage, navigateTo } = useNavigation(isAuthenticated ? 'dashboard' : 'login');
   
-  const { jobs, candidates, isDataLoading, fetchAllData, deleteJobById, updateJobInStore } = useDataStore();
+  const { jobs, candidates, isDataLoading, fetchAllData, deleteJobById } = useDataStore();
   
   const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
+  const [candidateForTest, setCandidateForTest] = useState<Candidate | null>(null);
+  const [activeTestId, setActiveTestId] = useState<number | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && profile) {
@@ -89,6 +92,21 @@ function App() {
     }
   };
 
+  const handleStartTest = (candidate: Candidate) => {
+    setCandidateForTest(candidate);
+    navigateTo('behavioral-test');
+  };
+
+  const handleTestComplete = (testId: number) => {
+    setActiveTestId(testId);
+    navigateTo('behavioral-result');
+  };
+
+  const handleCancelTest = () => {
+    setCandidateForTest(null);
+    navigateTo('results'); // Volta para a página de resultados
+  };
+
   if (isAuthLoading) return <LoadingSpinner />;
   if (!isAuthenticated) {
     return (
@@ -106,17 +124,28 @@ function App() {
       case 'edit-screening':
         if (!selectedJob) return <div>Vaga não encontrada!</div>;
         return <EditScreeningPage jobToEdit={selectedJob} onJobUpdated={handleJobUpdated} onCancel={() => navigateTo('dashboard')} />;
-      case 'results': return <ResultsPage selectedJob={selectedJob} candidates={candidates} onDataSynced={() => fetchAllData(profile)} />;
+      case 'results': return <ResultsPage selectedJob={selectedJob} candidates={candidates} onDataSynced={() => fetchAllData(profile)} onStartBehavioralTest={handleStartTest} />;
       case 'settings': return <SettingsPage />;
       case 'database': return <CandidateDatabasePage />;
       case 'agenda': return <AgendaPage />;
+      case 'behavioral-test':
+          return <BehavioralTestPage 
+                    candidateIdForTest={candidateForTest?.id || null} 
+                    onTestComplete={handleTestComplete} 
+                    onCancel={handleCancelTest}
+                 />;
+      case 'behavioral-result':
+          if (!activeTestId) { 
+            navigateTo('dashboard');
+            return null;
+          }
+          return <BehavioralResultPage testId={activeTestId} onBack={() => navigateTo('results')} />;
       default: return <DashboardPage jobs={jobs} candidates={candidates} onViewResults={handleViewResults} onDeleteJob={handleDeleteJob} onNavigate={navigateTo} onEditJob={handleEditJob} />;
     }
   };
 
   return (
     <div className="font-inter antialiased">
-      {/* CORREÇÃO: Envolva a aplicação com o DndProvider */}
       <DndProvider backend={HTML5Backend}>
         <MainLayout currentPage={currentPage} user={profile} onNavigate={navigateTo} onLogout={handleLogout}>{renderContent()}</MainLayout>
       </DndProvider>

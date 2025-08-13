@@ -1,7 +1,19 @@
-// Local: src/shared/types/index.ts
+// Caminho: src/shared/types/index.ts
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
 
-// Chave da página para navegação - ADICIONAMOS 'edit-screening'
-export type PageKey = 'login' | 'signup' | 'dashboard' | 'new-screening' | 'edit-screening' | 'results' | 'settings' | 'database' | 'agenda';
+// Chave da página para navegação - ADICIONAMOS 'edit-screening' E AS NOVAS PÁGINAS
+export type PageKey = 
+  'login' | 
+  'signup' | 
+  'dashboard' | 
+  'new-screening' | 
+  'edit-screening' | 
+  'results' | 
+  'settings' | 
+  'database' | 
+  'agenda' |
+  'behavioral-test' |
+  'behavioral-result';
 
 // Representa um Candidato como vem da API do Baserow
 export interface Candidate {

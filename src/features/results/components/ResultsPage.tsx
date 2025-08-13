@@ -1,4 +1,5 @@
-// Local: src/features/results/components/ResultsPage.tsx
+// Caminho: src/features/results/components/ResultsPage.tsx
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LayoutGrid, List, UploadCloud } from 'lucide-react';
@@ -27,9 +28,10 @@ interface ResultsPageProps {
   selectedJob: JobPosting | null;
   candidates: Candidate[];
   onDataSynced: () => void;
+  onStartBehavioralTest: (candidate: Candidate) => void;
 }
 
-const ResultsPage: React.FC<ResultsPageProps> = ({ selectedJob, candidates, onDataSynced }) => {
+const ResultsPage: React.FC<ResultsPageProps> = ({ selectedJob, candidates, onDataSynced, onStartBehavioralTest }) => {
   const { profile } = useAuth();
   const { isGoogleConnected } = useGoogleAuth();
   const { updateCandidateStatusInStore, fetchAllData } = useDataStore();
@@ -259,6 +261,7 @@ const ResultsPage: React.FC<ResultsPageProps> = ({ selectedJob, candidates, onDa
           onClose={handleCloseDetailModal}
           onScheduleInterview={handleOpenScheduleModal}
           onUpdateStatus={handleUpdateCandidateStatus}
+          onStartBehavioralTest={onStartBehavioralTest}
         />
       )}
       <ScheduleModal isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} candidate={candidateToSchedule} onSchedule={handleScheduleSubmit} />

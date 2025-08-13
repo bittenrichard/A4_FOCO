@@ -1,4 +1,5 @@
-// Local: server.ts
+// Caminho: server.ts
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
 
 import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
@@ -634,6 +635,68 @@ app.post('/api/google/calendar/create-event', async (req: Request, res: Response
     res.status(500).json({ success: false, message: 'Falha ao criar evento.' });
   }
 });
+
+// --- CÓDIGO NOVO ADICIONADO AQUI ---
+const TESTE_COMPORTAMENTAL_TABLE_ID = '727';
+const TESTE_COMPORTAMENTAL_WEBHOOK_URL = 'https://webhook.focoserv.com.br/webhook/testecomportamental';
+
+app.post('/api/behavioral-test/submit', async (req: Request, res: Response) => {
+  const { candidateId, recruiterId, responses } = req.body;
+
+  if (!candidateId || !recruiterId || !responses) {
+    return res.status(400).json({ error: 'Dados insuficientes para submeter o teste.' });
+  }
+
+  try {
+    const newTestEntry = await baserowServer.post(TESTE_COMPORTAMENTAL_TABLE_ID, {
+      candidato: [parseInt(candidateId as string)],
+      recrutador: [parseInt(recruiterId as string)],
+      data_de_resposta: new Date().toISOString(),
+      status: 'Processando',
+      respostas: JSON.stringify(responses),
+    });
+
+    const webhookPayload = {
+      testId: newTestEntry.id,
+      candidateId,
+      recruiterId,
+      responses,
+    };
+
+    fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(webhookPayload),
+    }).catch(webhookError => {
+      console.error("ERRO AO DISPARAR WEBHOOK DO TESTE COMPORTAMENTAL:", webhookError);
+    });
+
+    res.status(201).json({ success: true, message: 'Teste enviado para análise.', testId: newTestEntry.id });
+
+  } catch (error: any) {
+    console.error('Erro ao submeter teste comportamental (backend):', error);
+    res.status(500).json({ error: error.message || 'Erro ao salvar as respostas do teste.' });
+  }
+});
+
+app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Response) => {
+    const { testId } = req.params;
+    if (!testId) {
+        return res.status(400).json({ error: 'ID do teste é obrigatório.' });
+    }
+
+    try {
+        const result = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
+        if (!result) {
+            return res.status(404).json({ error: 'Resultado do teste não encontrado.' });
+        }
+        res.json({ success: true, data: result });
+    } catch (error: any) {
+        console.error(`Erro ao buscar resultado do teste ${testId} (backend):`, error);
+        res.status(500).json({ error: 'Não foi possível buscar o resultado do teste.' });
+    }
+});
+// --- FIM DO CÓDIGO NOVO ---
 
 app.listen(port, () => {
   console.log(`Backend rodando em http://localhost:${port}`);

@@ -1,5 +1,8 @@
+// Caminho: src/shared/components/Layout/Sidebar.tsx
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
+
 import React from 'react';
-import { LayoutDashboard, PlusCircle, Settings, LogOut, ChevronsLeft, ChevronsRight, Database, Calendar } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Settings, LogOut, ChevronsLeft, ChevronsRight, Database, Calendar, ClipboardList } from 'lucide-react';
 import { PageKey } from '../../types';
 import { UserProfile } from '../../../features/auth/types';
 
@@ -29,6 +32,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     { key: 'agenda' as const, label: 'Agenda', icon: Calendar },
     { key: 'settings' as const, label: 'Configurações', icon: Settings }
   ];
+
+  // Adiciona o item de menu do teste comportamental seletivamente
+  const behavioralTestMenuItem = { key: 'behavioral-test' as const, label: 'Teste Comportamental', icon: ClipboardList };
+  const settingsIndex = menuItems.findIndex(item => item.key === 'settings');
+  if (settingsIndex !== -1) {
+    menuItems.splice(settingsIndex, 0, behavioralTestMenuItem);
+  } else {
+    menuItems.push(behavioralTestMenuItem);
+  }
+
 
   const handleNavigate = (page: PageKey) => {
     onNavigate(page);

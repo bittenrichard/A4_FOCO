@@ -1,5 +1,8 @@
+// Caminho: src/features/results/components/CandidateDetailModal.tsx
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
+
 import React, { useState } from 'react';
-import { X, User, Star, Briefcase, FileText, MessageCircle, Download, CalendarPlus, ChevronDown, CheckCircle, AlertCircle, RefreshCcw } from 'lucide-react';
+import { X, User, Star, Briefcase, FileText, MessageCircle, Download, CalendarPlus, ChevronDown, RefreshCcw, ClipboardList, Mail } from 'lucide-react';
 import { Candidate } from '../../../shared/types';
 import { formatPhoneNumberForWhatsApp } from '../../../shared/utils/formatters';
 
@@ -8,14 +11,16 @@ interface CandidateDetailModalProps {
   onClose: () => void;
   onScheduleInterview: (candidate: Candidate) => void;
   onUpdateStatus: (candidateId: number, newStatus: 'Triagem' | 'Entrevista' | 'Aprovado' | 'Reprovado') => void;
+  onStartBehavioralTest: (candidate: Candidate) => void;
 }
 
-const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ candidate, onClose, onScheduleInterview, onUpdateStatus }) => {
+const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ candidate, onClose, onScheduleInterview, onUpdateStatus, onStartBehavioralTest }) => {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   if (!candidate) return null;
 
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number | null) => {
+    if (score === null) return 'text-gray-400';
     if (score >= 90) return 'text-green-500';
     if (score >= 70) return 'text-yellow-500';
     return 'text-red-500';
@@ -65,8 +70,8 @@ const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ candidate, 
                 <Star size={16} className="mr-2" />
                 <span className="text-sm font-semibold">Score de Aderência</span>
               </div>
-              <p className={`text-3xl font-bold ${getScoreColor(candidate.score || 0)}`}>
-                {candidate.score || 0}%
+              <p className={`text-3xl font-bold ${getScoreColor(candidate.score)}`}>
+                {candidate.score ?? 'N/A'}%
               </p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
@@ -89,7 +94,16 @@ const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ candidate, 
           </div>
         </div>
 
-        <div className="p-4 border-t bg-gray-50 rounded-b-lg flex flex-col sm:flex-row justify-end items-center gap-3">
+        <div className="p-4 border-t bg-gray-50 rounded-b-lg flex flex-wrap justify-end items-center gap-3">
+          <button 
+            onClick={() => { onClose(); onStartBehavioralTest(candidate); }}
+            className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-purple-600 text-white hover:bg-purple-700 w-full sm:w-auto"
+            title="Iniciar Teste Comportamental"
+          >
+            <ClipboardList size={16} />
+            Teste Comportamental
+          </button>
+          
           <button 
             onClick={() => { onClose(); onScheduleInterview(candidate); }}
             className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700 w-full sm:w-auto"
@@ -109,7 +123,7 @@ const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ candidate, 
               Status: {candidate.status?.value || 'Triagem'} <ChevronDown size={16} className="ml-1" />
             </button>
             {showStatusMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+              <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-10">
                 {['Triagem', 'Entrevista', 'Aprovado', 'Reprovado'].map((statusOption) => (
                   <button
                     key={statusOption}
@@ -122,42 +136,6 @@ const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ candidate, 
               </div>
             )}
           </div>
-          
-           <a
-            href={curriculumAvailable ? curriculumAvailable.url : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => !curriculumAvailable && e.preventDefault()}
-            className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
-                curriculumAvailable 
-                ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50' 
-                : 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
-            } w-full sm:w-auto`}
-            title={curriculumAvailable ? 'Baixar currículo' : 'Currículo não disponível'}
-          >
-            <Download size={16} />
-            Currículo
-          </a>
-          <a
-            href={whatsappNumber ? `https://wa.me/${whatsappNumber}` : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`
-              flex items-center justify-center gap-2 px-6 py-2 
-              bg-indigo-600 text-white font-semibold rounded-md 
-              transition-colors
-              ${!whatsappNumber 
-                ? 'opacity-50 cursor-not-allowed' 
-                : 'hover:bg-indigo-700'
-              }
-              w-full sm:w-auto
-            `}
-            onClick={(e) => !whatsappNumber && e.preventDefault()}
-            title={whatsappNumber ? 'Chamar no WhatsApp' : 'Telefone não disponível'}
-          >
-            <MessageCircle size={18} />
-            Chamar Candidato
-          </a>
         </div>
       </div>
       <style>{`
