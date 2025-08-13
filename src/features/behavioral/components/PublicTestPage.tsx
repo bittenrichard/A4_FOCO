@@ -34,7 +34,7 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
     // MELHORIA 2: Referência para o topo da página para o scroll
     const pageTopRef = useRef<HTMLDivElement>(null);
 
-    // Regra de negócio: Mínimo de 6, sem máximo
+    // --- MELHORIA 1: Mínimo de 6, sem máximo ---
     const SELECTIONS_MINIMUM = 6;
 
     useEffect(() => {
@@ -61,21 +61,24 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
         if (currentAnswers.includes(adjective)) {
             setAnswers(currentAnswers.filter(a => a !== adjective));
         } else {
+            // --- MELHORIA 1: Removemos a verificação de limite máximo ---
             setAnswers([...currentAnswers, adjective]);
         }
     };
 
     const handleNextStep = () => {
+        // --- MELHORIA 1: Verificação de mínimo de 6 ---
         if (currentAnswers.length < SELECTIONS_MINIMUM) {
             alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos.`);
             return;
         }
         setStep(2);
-        // MELHORIA 2: Scroll para o topo ao avançar
+        // --- MELHORIA 2: Scroll para o topo ---
         pageTopRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const handleSubmit = async () => {
+        // --- MELHORIA 1: Verificação de mínimo de 6 ---
         if (currentAnswers.length < SELECTIONS_MINIMUM) {
             alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos.`);
             return;
@@ -114,6 +117,7 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
         );
     }
 
+    // --- MELHORIA 1: Lógica para a barra de progresso e mensagem ---
     const progress = step === 1 
         ? Math.min(50, (currentAnswers.length / SELECTIONS_MINIMUM) * 50) 
         : 50 + Math.min(50, (currentAnswers.length / SELECTIONS_MINIMUM) * 50);
@@ -130,6 +134,7 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
                 <div className="bg-gray-50 p-6 rounded-lg border">
                     <h2 className="text-lg font-semibold text-gray-900">{step === 1 ? 'Como os outros te veem?' : 'Como você se vê?'}</h2>
                     <p className="text-sm text-gray-600 mt-1">{step === 1 ? 'Na sua percepção, marque os adjetivos que descrevem como os outros pensam que você deveria ser.' : 'Agora, marque os adjetivos que melhor te representam.'}</p>
+                    {/* --- MELHORIA 1: Mensagem atualizada --- */}
                     <p className="mt-4 font-bold text-indigo-700">
                         Selecione no mínimo {SELECTIONS_MINIMUM} opções. ({currentAnswers.length} selecionadas)
                     </p>
