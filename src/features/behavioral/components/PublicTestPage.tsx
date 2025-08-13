@@ -31,18 +31,12 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
     const [isCompleted, setIsCompleted] = useState(false);
     
     const pageTopRef = useRef<HTMLDivElement>(null);
-
     const SELECTIONS_MINIMUM = 6;
 
-    // --- AJUSTE APLICADO AQUI ---
-    // Este "efeito" observa a variável 'step'.
-    // Quando o 'step' muda para 2, o código dentro dele é executado.
     useEffect(() => {
-        if (step === 2) {
-            // Rola suavemente para o topo da página.
-            pageTopRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [step]); // A dependência [step] garante que isso só rode quando o passo mudar.
+        // Efeito de scroll para o topo, garantindo que funcione sempre que o passo mudar.
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [step]);
 
     useEffect(() => {
         const fetchTestData = async () => {
@@ -65,11 +59,11 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
     const adjectives = step === 1 ? ADJECTIVES_STEP_1 : ADJECTIVES_STEP_2;
 
     const handleSelect = (adjective: string) => {
-        if (currentAnswers.includes(adjective)) {
-            setAnswers(currentAnswers.filter(a => a !== adjective));
-        } else {
-            setAnswers([...currentAnswers, adjective]);
-        }
+        setAnswers(prevAnswers => 
+            prevAnswers.includes(adjective)
+                ? prevAnswers.filter(a => a !== adjective)
+                : [...prevAnswers, adjective]
+        );
     };
 
     const handleNextStep = () => {
@@ -77,13 +71,12 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
             alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos.`);
             return;
         }
-        // Apenas atualiza o estado. A rolagem agora é tratada pelo useEffect.
         setStep(2);
     };
 
     const handleSubmit = async () => {
-        if (currentAnswers.length < SELECTIONS_MINIMUM) {
-            alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos.`);
+        if (step2Answers.length < SELECTIONS_MINIMUM) {
+            alert(`Você deve selecionar no mínimo ${SELECTIONS_MINIMUM} adjetivos no Passo 2.`);
             return;
         }
         setIsSubmitting(true);
@@ -133,18 +126,21 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
 
                 <div className="my-6"><ProgressBar progress={progress} /></div>
 
-                <div className="bg-gray-50 p-6 rounded-lg border">
-                    <h2 className="text-lg font-semibold text-gray-900">{step === 1 ? 'Como os outros te veem?' : 'Como você se vê?'}</h2>
-                    <p className="text-sm text-gray-600 mt-1">{step === 1 ? 'Na sua percepção, marque os adjetivos que descrevem como os outros pensam que você deveria ser.' : 'Agora, marque os adjetivos que melhor te representam.'}</p>
-                    <p className="mt-4 font-bold text-indigo-700">
-                        Selecione no mínimo {SELECTIONS_MINIMUM} opções. ({currentAnswers.length} selecionadas)
-                    </p>
-                </div>
-                
-                {error && <div className="mt-6 flex items-center gap-2 rounded-md bg-red-50 p-4 text-sm text-red-700"><AlertCircle size={18} /> {error}</div>}
+                {/* --- AJUSTE APLICADO AQUI (key={step}) --- */}
+                <div className="fade-in" key={step}>
+                    <div className="bg-gray-50 p-6 rounded-lg border">
+                        <h2 className="text-lg font-semibold text-gray-900">{step === 1 ? 'Como os outros te veem?' : 'Como você se vê?'}</h2>
+                        <p className="text-sm text-gray-600 mt-1">{step === 1 ? 'Na sua percepção, marque os adjetivos que descrevem como os outros pensam que você deveria ser.' : 'Agora, marque os adjetivos que melhor te representam.'}</p>
+                        <p className="mt-4 font-bold text-indigo-700">
+                            Selecione no mínimo {SELECTIONS_MINIMUM} opções. ({currentAnswers.length} selecionadas)
+                        </p>
+                    </div>
+                    
+                    {error && <div className="mt-6 flex items-center gap-2 rounded-md bg-red-50 p-4 text-sm text-red-700"><AlertCircle size={18} /> {error}</div>}
 
-                <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {adjectives.map(adj => <AdjectiveButton key={adj} adjective={adj} isSelected={currentAnswers.includes(adj)} isDisabled={false} onClick={() => handleSelect(adj)} />)}
+                    <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {adjectives.map(adj => <AdjectiveButton key={adj} adjective={adj} isSelected={currentAnswers.includes(adj)} isDisabled={false} onClick={() => handleSelect(adj)} />)}
+                    </div>
                 </div>
 
                 <div className="mt-10 flex justify-end items-center">

@@ -657,47 +657,44 @@ app.post('/api/behavioral-test/generate', async (req: Request, res: Response) =>
   }
 });
 
-// --- AJUSTE APLICADO AQUI ---
+// --- AJUSTE APLICADO AQUI (NOVA ABORDAGEM) ---
 app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
-  const { testId, responses } = req.body;
-  if (!testId || !responses) {
-    return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
-  }
-
-  try {
-    const initialTestEntry = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
-    
-    // --- NOVA VALIDAÇÃO MAIS ROBUSTA ---
-    if (!initialTestEntry || !initialTestEntry.candidato || initialTestEntry.candidato.length === 0 || !initialTestEntry.recrutador || initialTestEntry.recrutador.length === 0) {
-        throw new Error(`Dados de candidato/recrutador não encontrados para o teste ID ${testId}.`);
+    const { testId, responses } = req.body;
+    if (!testId || !responses) {
+        return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
     }
-    
-    await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
-      data_de_resposta: new Date().toISOString(),
-      status: 'Processando',
-      respostas: JSON.stringify(responses),
-    });
 
-    const webhookPayload = {
-      testId: initialTestEntry.id,
-      candidateId: initialTestEntry.candidato[0].id,
-      recruiterId: initialTestEntry.recrutador[0].id,
-      responses,
-    };
+    try {
+        // Passo 1: Apenas salva as respostas e atualiza o status.
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
+            data_de_resposta: new Date().toISOString(),
+            status: 'Processando',
+            respostas: JSON.stringify(responses),
+        });
 
-    fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(webhookPayload),
-    }).catch(webhookError => {
-      console.error("ERRO AO DISPARAR WEBHOOK DO TESTE COMPORTAMENTAL:", webhookError);
-    });
+        // Passo 2: Monta um payload SIMPLES para o webhook.
+        const webhookPayload = {
+            testId: parseInt(testId),
+            responses,
+        };
 
-    res.status(200).json({ success: true, message: 'Teste enviado para análise.' });
-  } catch (error: any) {
-    console.error('Erro ao submeter teste comportamental (backend):', error);
-    res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
-  }
+        // Passo 3: Dispara o webhook e não espera pela resposta ("Fire and Forget").
+        fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload),
+        }).catch(webhookError => {
+            // Loga o erro, mas não impede a resposta de sucesso para o usuário.
+            console.error("ERRO AO DISPARAR WEBHOOK (Fire and Forget):", webhookError);
+        });
+
+        // Passo 4: Retorna sucesso para o usuário imediatamente.
+        res.status(200).json({ success: true, message: 'Teste enviado para análise.' });
+
+    } catch (error: any) {
+        console.error('Erro ao salvar respostas no Baserow (backend):', error);
+        res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
+    }
 });
 
 
