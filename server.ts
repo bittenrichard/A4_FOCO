@@ -43,6 +43,8 @@ const CANDIDATOS_TABLE_ID = '710';
 const WHATSAPP_CANDIDATOS_TABLE_ID = '712';
 const AGENDAMENTOS_TABLE_ID = '713';
 const SALT_ROUNDS = 10;
+const TESTE_COMPORTAMENTAL_TABLE_ID = '727';
+const TESTE_COMPORTAMENTAL_WEBHOOK_URL = 'https://webhook.focoserv.com.br/webhook/testecomportamental';
 
 interface BaserowJobPosting {
   id: number;
@@ -636,30 +638,43 @@ app.post('/api/google/calendar/create-event', async (req: Request, res: Response
   }
 });
 
-// --- CÓDIGO NOVO ADICIONADO AQUI ---
-const TESTE_COMPORTAMENTAL_TABLE_ID = '727';
-const TESTE_COMPORTAMENTAL_WEBHOOK_URL = 'https://webhook.focoserv.com.br/webhook/testecomportamental';
-
-app.post('/api/behavioral-test/submit', async (req: Request, res: Response) => {
-  const { candidateId, recruiterId, responses } = req.body;
-
-  if (!candidateId || !recruiterId || !responses) {
-    return res.status(400).json({ error: 'Dados insuficientes para submeter o teste.' });
+app.post('/api/behavioral-test/generate', async (req: Request, res: Response) => {
+  const { candidateId, recruiterId } = req.body;
+  if (!candidateId || !recruiterId) {
+    return res.status(400).json({ error: 'ID do candidato e do recrutador são obrigatórios.' });
   }
 
   try {
     const newTestEntry = await baserowServer.post(TESTE_COMPORTAMENTAL_TABLE_ID, {
       candidato: [parseInt(candidateId as string)],
       recrutador: [parseInt(recruiterId as string)],
+      status: 'Pendente',
+    });
+
+    res.status(201).json({ success: true, testId: newTestEntry.id });
+  } catch (error: any) {
+    console.error('Erro ao gerar link do teste comportamental:', error);
+    res.status(500).json({ error: 'Não foi possível gerar o link do teste.' });
+  }
+});
+
+app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
+  const { testId, responses } = req.body;
+  if (!testId || !responses) {
+    return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
+  }
+
+  try {
+    const updatedTestEntry = await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
       data_de_resposta: new Date().toISOString(),
       status: 'Processando',
       respostas: JSON.stringify(responses),
     });
 
     const webhookPayload = {
-      testId: newTestEntry.id,
-      candidateId,
-      recruiterId,
+      testId: updatedTestEntry.id,
+      candidateId: updatedTestEntry.candidato[0].id,
+      recruiterId: updatedTestEntry.recrutador[0].id,
       responses,
     };
 
@@ -671,11 +686,40 @@ app.post('/api/behavioral-test/submit', async (req: Request, res: Response) => {
       console.error("ERRO AO DISPARAR WEBHOOK DO TESTE COMPORTAMENTAL:", webhookError);
     });
 
-    res.status(201).json({ success: true, message: 'Teste enviado para análise.', testId: newTestEntry.id });
-
+    res.status(200).json({ success: true, message: 'Teste enviado para análise.' });
   } catch (error: any) {
     console.error('Erro ao submeter teste comportamental (backend):', error);
-    res.status(500).json({ error: error.message || 'Erro ao salvar as respostas do teste.' });
+    res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
+  }
+});
+
+app.get('/api/public/behavioral-test/:testId', async (req: Request, res: Response) => {
+    const { testId } = req.params;
+    if (!testId) {
+        return res.status(400).json({ error: 'ID do teste é obrigatório.' });
+    }
+    try {
+        const result = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
+        if (!result) {
+            return res.status(404).json({ error: 'Teste não encontrado.' });
+        }
+        res.json({ success: true, data: { candidateName: result.candidato[0]?.value } });
+    } catch (error: any) {
+        res.status(500).json({ error: 'Não foi possível buscar os dados do teste.' });
+    }
+});
+
+app.get('/api/behavioral-test/results/recruiter/:recruiterId', async (req: Request, res: Response) => {
+  const { recruiterId } = req.params;
+  if (!recruiterId) {
+    return res.status(400).json({ error: 'ID do recrutador é obrigatório.' });
+  }
+  try {
+    const { results } = await baserowServer.get(TESTE_COMPORTAMENTAL_TABLE_ID, `?filter__recrutador__link_row_has=${recruiterId}`);
+    res.json({ success: true, data: results || [] });
+  } catch (error: any) {
+    console.error('Erro ao buscar resultados de testes:', error);
+    res.status(500).json({ error: 'Não foi possível carregar os resultados.' });
   }
 });
 
@@ -684,7 +728,6 @@ app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Respons
     if (!testId) {
         return res.status(400).json({ error: 'ID do teste é obrigatório.' });
     }
-
     try {
         const result = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
         if (!result) {
@@ -696,7 +739,6 @@ app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Respons
         res.status(500).json({ error: 'Não foi possível buscar o resultado do teste.' });
     }
 });
-// --- FIM DO CÓDIGO NOVO ---
 
 app.listen(port, () => {
   console.log(`Backend rodando em http://localhost:${port}`);

@@ -30,18 +30,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     { key: 'new-screening' as const, label: 'Nova Triagem', icon: PlusCircle },
     { key: 'database' as const, label: 'Banco de Talentos', icon: Database },
     { key: 'agenda' as const, label: 'Agenda', icon: Calendar },
+    { key: 'behavioral-test' as const, label: 'Teste Comportamental', icon: ClipboardList },
     { key: 'settings' as const, label: 'Configurações', icon: Settings }
   ];
-
-  // Adiciona o item de menu do teste comportamental seletivamente
-  const behavioralTestMenuItem = { key: 'behavioral-test' as const, label: 'Teste Comportamental', icon: ClipboardList };
-  const settingsIndex = menuItems.findIndex(item => item.key === 'settings');
-  if (settingsIndex !== -1) {
-    menuItems.splice(settingsIndex, 0, behavioralTestMenuItem);
-  } else {
-    menuItems.push(behavioralTestMenuItem);
-  }
-
 
   const handleNavigate = (page: PageKey) => {
     onNavigate(page);

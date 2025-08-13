@@ -1,7 +1,7 @@
 // Caminho: src/shared/types/index.ts
 // CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
 
-// Chave da página para navegação - ADICIONAMOS 'edit-screening' E AS NOVAS PÁGINAS
+// Chave da página para navegação
 export type PageKey = 
   'login' | 
   'signup' | 

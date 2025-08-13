@@ -6,7 +6,7 @@ export interface BehavioralTestResult {
     candidato: { id: number; value: string }[];
     recrutador: { id: number; value: string }[];
     data_de_resposta: string;
-    status: 'Processando' | 'Concluído' | 'Erro';
+    status: 'Pendente' | 'Processando' | 'Concluído' | 'Erro';
     respostas: string; // JSON string
     perfil_executor: number | null;
     perfil_comunicador: number | null;

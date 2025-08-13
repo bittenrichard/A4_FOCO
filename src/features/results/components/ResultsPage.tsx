@@ -28,10 +28,9 @@ interface ResultsPageProps {
   selectedJob: JobPosting | null;
   candidates: Candidate[];
   onDataSynced: () => void;
-  onStartBehavioralTest: (candidate: Candidate) => void;
 }
 
-const ResultsPage: React.FC<ResultsPageProps> = ({ selectedJob, candidates, onDataSynced, onStartBehavioralTest }) => {
+const ResultsPage: React.FC<ResultsPageProps> = ({ selectedJob, candidates, onDataSynced }) => {
   const { profile } = useAuth();
   const { isGoogleConnected } = useGoogleAuth();
   const { updateCandidateStatusInStore, fetchAllData } = useDataStore();
@@ -261,7 +260,6 @@ const ResultsPage: React.FC<ResultsPageProps> = ({ selectedJob, candidates, onDa
           onClose={handleCloseDetailModal}
           onScheduleInterview={handleOpenScheduleModal}
           onUpdateStatus={handleUpdateCandidateStatus}
-          onStartBehavioralTest={onStartBehavioralTest}
         />
       )}
       <ScheduleModal isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} candidate={candidateToSchedule} onSchedule={handleScheduleSubmit} />

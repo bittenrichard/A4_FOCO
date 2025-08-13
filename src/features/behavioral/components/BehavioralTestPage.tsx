@@ -1,174 +1,106 @@
-// Caminho: src/features/behavioral/components/BehavioralTestPage.tsx
+// Caminho: src/features/behavioral/components/BehavioralTestsListPage.tsx
 // CÓDIGO COMPLETO DO NOVO ARQUIVO
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../auth/hooks/useAuth';
-import { ADJECTIVES_STEP_1, ADJECTIVES_STEP_2 } from '../data/questions';
-import { Loader2, AlertCircle } from 'lucide-react';
-import ProgressBar from '../../../shared/components/Layout/ProgressBar/index';
+import { Loader2, Eye, ClipboardCheck, Clock, AlertTriangle } from 'lucide-react';
+import { BehavioralTestResult } from '../types';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-interface BehavioralTestPageProps {
-  candidateIdForTest: number | null;
-  onTestComplete: (testId: number) => void;
-  onCancel: () => void;
+interface BehavioralTestsListPageProps {
+  onViewResult: (testId: number) => void;
 }
 
-const AdjectiveButton: React.FC<{
-  adjective: string;
-  isSelected: boolean;
-  isDisabled: boolean;
-  onClick: () => void;
-}> = ({ adjective, isSelected, isDisabled, onClick }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        disabled={isDisabled && !isSelected}
-        className={`
-            px-4 py-2 border rounded-md text-sm font-medium transition-all duration-200
-            ${isSelected
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }
-            ${isDisabled && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}
-        `}
-    >
-        {adjective}
-    </button>
-);
+const getStatusChip = (status: string) => {
+    switch (status) {
+        case 'Concluído':
+            return <div className="inline-flex items-center gap-2 text-xs font-semibold bg-green-100 text-green-800 px-3 py-1 rounded-full"><ClipboardCheck size={14}/> {status}</div>;
+        case 'Processando':
+            return <div className="inline-flex items-center gap-2 text-xs font-semibold bg-blue-100 text-blue-800 px-3 py-1 rounded-full"><Loader2 size={14} className="animate-spin"/> {status}</div>;
+        case 'Pendente':
+            return <div className="inline-flex items-center gap-2 text-xs font-semibold bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full"><Clock size={14}/> {status}</div>;
+        default:
+            return <div className="inline-flex items-center gap-2 text-xs font-semibold bg-gray-100 text-gray-800 px-3 py-1 rounded-full">{status}</div>;
+    }
+};
 
-const BehavioralTestPage: React.FC<BehavioralTestPageProps> = ({ candidateIdForTest, onTestComplete, onCancel }) => {
+const BehavioralTestsListPage: React.FC<BehavioralTestsListPageProps> = ({ onViewResult }) => {
     const { profile } = useAuth();
-    const [step, setStep] = useState(1);
-    const [step1Answers, setStep1Answers] = useState<string[]>([]);
-    const [step2Answers, setStep2Answers] = useState<string[]>([]);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [results, setResults] = useState<BehavioralTestResult[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const SELECTIONS_LIMIT = 10;
-
-    const currentAnswers = step === 1 ? step1Answers : step2Answers;
-    const setAnswers = step === 1 ? setStep1Answers : setStep2Answers;
-    const adjectives = step === 1 ? ADJECTIVES_STEP_1 : ADJECTIVES_STEP_2;
-    
-    const handleSelect = (adjective: string) => {
-        if (currentAnswers.includes(adjective)) {
-            setAnswers(currentAnswers.filter(a => a !== adjective));
-        } else if (currentAnswers.length < SELECTIONS_LIMIT) {
-            setAnswers([...currentAnswers, adjective]);
-        }
-    };
-
-    const handleNextStep = () => {
-        if (currentAnswers.length !== SELECTIONS_LIMIT) {
-            alert(`Você deve selecionar exatamente ${SELECTIONS_LIMIT} adjetivos.`);
-            return;
-        }
-        setStep(2);
-    };
-
-    const handleSubmit = async () => {
-        if (currentAnswers.length !== SELECTIONS_LIMIT) {
-            alert(`Você deve selecionar exatamente ${SELECTIONS_LIMIT} adjetivos.`);
-            return;
-        }
-
-        if (!profile || !candidateIdForTest) {
-            setError('Recrutador ou candidato não identificado. Não é possível enviar o teste.');
-            return;
-        }
-
-        setIsSubmitting(true);
+    const fetchResults = useCallback(async () => {
+        if (!profile) return;
+        setIsLoading(true);
         setError(null);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/behavioral-test/submit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    candidateId: candidateIdForTest,
-                    recruiterId: profile.id,
-                    responses: {
-                        step1: step1Answers,
-                        step2: step2Answers,
-                    }
-                }),
-            });
-            
+            const response = await fetch(`${API_BASE_URL}/api/behavioral-test/results/recruiter/${profile.id}`);
             const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Falha ao enviar o teste.');
-            }
-
-            onTestComplete(data.testId);
-
+            if (!response.ok || !data.success) throw new Error(data.error || 'Falha ao buscar resultados.');
+            setResults(data.data);
         } catch (err: any) {
             setError(err.message);
         } finally {
-            setIsSubmitting(false);
+            setIsLoading(false);
         }
-    };
+    }, [profile]);
 
-    const progress = step === 1 ? (currentAnswers.length / SELECTIONS_LIMIT) * 50 : 50 + (currentAnswers.length / SELECTIONS_LIMIT) * 50;
+    useEffect(() => {
+        fetchResults();
+    }, [fetchResults]);
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
+    }
+
+    if (error) {
+        return <div className="bg-red-50 text-red-700 p-4 rounded-md flex items-center gap-2"><AlertTriangle size={20} /> {error}</div>;
+    }
 
     return (
-        <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg border border-gray-200">
-            <h1 className="text-2xl font-bold text-gray-800 text-center">Teste de Perfil Comportamental</h1>
-            <p className="text-center text-gray-600 mt-2">Passo {step} de 2</p>
-
-            <div className="my-6">
-                <ProgressBar progress={progress} />
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-lg border">
-                <h2 className="text-lg font-semibold text-gray-900">
-                    {step === 1 ? 'Como os outros te veem?' : 'Como você se vê?'}
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                    {step === 1 
-                        ? 'Na sua percepção, marque os adjetivos que descrevem como os outros pensam que você deveria ser.' 
-                        : 'Agora, marque os adjetivos que melhor te representam.'
-                    }
-                </p>
-                <p className="mt-4 font-bold text-indigo-700">
-                    Selecione exatamente {SELECTIONS_LIMIT} opções. ({currentAnswers.length}/{SELECTIONS_LIMIT})
-                </p>
-            </div>
+        <div className="fade-in bg-white p-8 rounded-lg shadow-md border border-gray-200">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Resultados dos Testes</h1>
+            <p className="text-gray-600 mb-8">Acompanhe o status e visualize os perfis comportamentais dos seus candidatos.</p>
             
-            {error && (
-                <div className="mt-6 flex items-center gap-2 rounded-md bg-red-50 p-4 text-sm text-red-700">
-                    <AlertCircle size={18} /> {error}
-                </div>
-            )}
-
-            <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {adjectives.map(adj => (
-                    <AdjectiveButton
-                        key={adj}
-                        adjective={adj}
-                        isSelected={currentAnswers.includes(adj)}
-                        isDisabled={currentAnswers.length >= SELECTIONS_LIMIT}
-                        onClick={() => handleSelect(adj)}
-                    />
-                ))}
-            </div>
-
-            <div className="mt-10 flex justify-between items-center">
-                 <button onClick={onCancel} className="text-gray-600 font-medium hover:underline">
-                    Cancelar
-                </button>
-                {step === 1 ? (
-                    <button onClick={handleNextStep} disabled={currentAnswers.length !== SELECTIONS_LIMIT} className="px-8 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50">
-                        Próximo Passo
-                    </button>
-                ) : (
-                    <button onClick={handleSubmit} disabled={isSubmitting || currentAnswers.length !== SELECTIONS_LIMIT} className="px-8 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors disabled:opacity-50">
-                        {isSubmitting ? <Loader2 className="animate-spin" /> : 'Finalizar Teste'}
-                    </button>
-                )}
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="text-xs text-gray-500 uppercase border-b bg-gray-50">
+                            <th className="px-4 py-3 font-semibold">Candidato</th>
+                            <th className="px-4 py-3 font-semibold">Status</th>
+                            <th className="px-4 py-3 font-semibold">Data da Resposta</th>
+                            <th className="px-4 py-3 font-semibold text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {results.length > 0 ? (
+                            results.map((result) => (
+                                <tr key={result.id} className="border-b hover:bg-gray-50 transition-colors">
+                                    <td className="px-4 py-4 font-medium text-gray-800">{result.candidato[0]?.value || 'N/A'}</td>
+                                    <td className="px-4 py-4">{getStatusChip(result.status)}</td>
+                                    <td className="px-4 py-4 text-gray-600">{result.data_de_resposta ? format(new Date(result.data_de_resposta), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Não respondido'}</td>
+                                    <td className="px-4 py-4 text-center">
+                                        <button 
+                                            onClick={() => onViewResult(result.id)}
+                                            disabled={result.status !== 'Concluído'}
+                                            className="p-2 text-gray-500 rounded-full transition-colors disabled:text-gray-300 disabled:cursor-not-allowed hover:bg-gray-200 hover:text-indigo-600" title="Ver Resultado">
+                                            <Eye size={18} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr><td colSpan={4} className="text-center py-10 text-gray-500">Nenhum teste comportamental foi gerado ou respondido ainda.</td></tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
 };
 
-export default BehavioralTestPage;
+export default BehavioralTestsListPage;

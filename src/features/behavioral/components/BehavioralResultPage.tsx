@@ -111,7 +111,7 @@ const BehavioralResultPage: React.FC<BehavioralResultPageProps> = ({ testId, onB
     return (
         <div className="fade-in max-w-5xl mx-auto space-y-8">
             <button onClick={onBack} className="text-indigo-600 hover:underline">
-                &larr; Voltar
+                &larr; Voltar para a lista
             </button>
 
             <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200">
