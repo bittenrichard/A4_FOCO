@@ -751,4 +751,3 @@ app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Respons
 app.listen(port, () => {
   console.log(`Backend rodando em http://localhost:${port}`);
 });
-}
