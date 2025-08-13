@@ -665,16 +665,23 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
   }
 
   try {
-    const updatedTestEntry = await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
+    await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
       data_de_resposta: new Date().toISOString(),
       status: 'Processando',
       respostas: JSON.stringify(responses),
     });
+    
+    // CORREÇÃO: Após atualizar, buscamos o registro completo para ter todas as informações
+    const fullTestEntry = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
+
+    if (!fullTestEntry || !fullTestEntry.candidato || !fullTestEntry.recrutador) {
+        throw new Error(`Não foi possível encontrar os dados completos para o teste ID ${testId} após a atualização.`);
+    }
 
     const webhookPayload = {
-      testId: updatedTestEntry.id,
-      candidateId: updatedTestEntry.candidato[0].id,
-      recruiterId: updatedTestEntry.recrutador[0].id,
+      testId: fullTestEntry.id,
+      candidateId: fullTestEntry.candidato[0].id,
+      recruiterId: fullTestEntry.recrutador[0].id,
       responses,
     };
 
@@ -715,7 +722,7 @@ app.get('/api/behavioral-test/results/recruiter/:recruiterId', async (req: Reque
     return res.status(400).json({ error: 'ID do recrutador é obrigatório.' });
   }
   try {
-    const { results } = await baserowServer.get(TESTE_COMPORTAMENTAL_TABLE_ID, `?filter__recrutador__link_row_has=${recruiterId}`);
+    const { results } = await baserowServer.get(TESTE_COMPORTAMENTAL_TABLE_ID, `?filter__recrutador__link_row_has=${recruiterId}&order_by=-data_de_resposta`);
     res.json({ success: true, data: results || [] });
   } catch (error: any) {
     console.error('Erro ao buscar resultados de testes:', error);
