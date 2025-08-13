@@ -657,6 +657,7 @@ app.post('/api/behavioral-test/generate', async (req: Request, res: Response) =>
   }
 });
 
+// --- VERSÃO FINAL E ROBUSTA ---
 app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
     const { testId, responses } = req.body;
     if (!testId || !responses) {
@@ -664,40 +665,38 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
     }
 
     try {
+        // Passo 1: Salva apenas os dados essenciais, removendo a atualização de 'status'.
         const dataToPatch = {
             data_de_resposta: new Date().toISOString(),
-            status: 'Processando',
             respostas: JSON.stringify(responses),
         };
-
+        
         await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), dataToPatch);
 
+        // Passo 2: Monta o payload para o webhook.
         const webhookPayload = {
             testId: parseInt(testId),
             responses,
         };
 
+        // Passo 3: Dispara o webhook ("Fire and Forget").
         fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(webhookPayload),
         }).catch(webhookError => {
-            console.error(`[WEBHOOK_ERROR] Erro ao disparar webhook para Teste ID: ${testId}:`, webhookError);
+            console.error(`ERRO AO DISPARAR WEBHOOK para Teste ID: ${testId}:`, webhookError);
         });
 
+        // Passo 4: Retorna sucesso imediatamente para o usuário.
         res.status(200).json({ success: true, message: 'Teste enviado para análise.' });
 
     } catch (error: any) {
-        // --- PONTO CRÍTICO: LOG DETALHADO DO ERRO ---
-        console.error(`\n\n--- ERRO GRAVE NO SUBMIT DO TESTE ID: ${testId} ---`);
-        console.error("Timestamp:", new Date().toISOString());
-        console.error("Mensagem de Erro:", error.message);
+        // Este erro agora só deve acontecer se a escrita no Baserow falhar.
+        console.error(`ERRO GRAVE ao salvar respostas do Teste ID ${testId}:`, error.message);
         if (error.response && error.response.data) {
             console.error("Detalhes da API (Baserow):", JSON.stringify(error.response.data, null, 2));
         }
-        console.error("Stack Trace Completo:", error.stack);
-        console.error("--- FIM DO RELATÓRIO DE ERRO ---\n\n");
-        
         res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
     }
 });
