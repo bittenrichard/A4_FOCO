@@ -1,6 +1,4 @@
-// Caminho: src/features/behavioral/components/index.ts
 // CÓDIGO COMPLETO DO NOVO ARQUIVO
-
 export { default as BehavioralResultPage } from './BehavioralResultPage';
 export { default as BehavioralTestsListPage } from './BehavioralTestsListPage';
 export { default as ProfileChart } from './ProfileChart';

@@ -1,6 +1,4 @@
-// Caminho: src/features/behavioral/types/index.ts
 // CÓDIGO COMPLETO DO NOVO ARQUIVO
-
 export interface BehavioralTestResult {
     id: number;
     candidato: { id: number; value: string }[];

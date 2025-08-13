@@ -20,7 +20,7 @@ import CandidateDatabasePage from './features/database/components/CandidateDatab
 import AgendaPage from './features/agenda/components/AgendaPage';
 import { useDataStore } from './shared/store/useDataStore';
 import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend'; // <-- CORRIGIDO AQUI
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 // IMPORT CORRIGIDO USANDO O ARQUIVO INDEX.TS
 import { 
