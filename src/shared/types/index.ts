@@ -2,15 +2,15 @@
 // CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
 
 // Chave da página para navegação
-export type PageKey = 
-  'login' | 
-  'signup' | 
-  'dashboard' | 
-  'new-screening' | 
-  'edit-screening' | 
-  'results' | 
-  'settings' | 
-  'database' | 
+export type PageKey =
+  'login' |
+  'signup' |
+  'dashboard' |
+  'new-screening' |
+  'edit-screening' |
+  'results' |
+  'settings' |
+  'database' |
   'agenda' |
   'behavioral-test' |
   'behavioral-result';
@@ -28,11 +28,14 @@ export interface Candidate {
   vaga: { id: number; value: string }[] | null;
   usuario: { id: number; value: string }[] | null;
   curriculo?: { url: string; name: string }[] | null;
-  
+
   cidade?: string;
   bairro?: string;
   idade?: number;
   sexo?: string;
   escolaridade?: string;
   status?: { id: number; value: 'Triagem' | 'Entrevista' | 'Aprovado' | 'Reprovado' } | null;
+
+  // --- NOVO CAMPO ADICIONADO ---
+  perfil_comportamental?: string | null;
 }

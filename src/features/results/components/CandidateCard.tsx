@@ -1,9 +1,10 @@
-// Local: src/features/results/components/CandidateCard.tsx
+// Caminho: src/features/results/components/CandidateCard.tsx
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
 
 import React from 'react';
-import { useDrag } from 'react-dnd'; // CORREÇÃO: Importar useDrag
+import { useDrag } from 'react-dnd';
 import { Candidate } from '../../../shared/types';
-import { GripVertical, CalendarPlus, Mail, CalendarDays } from 'lucide-react';
+import { GripVertical, CalendarPlus, Mail, CalendarDays, BrainCircuit } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -21,11 +22,10 @@ const CandidateCard: React.FC<CandidateCardProps> = ({ candidate, onViewDetails,
     return 'bg-red-100 text-red-800';
   };
 
-  const formattedTriagemDate = candidate.data_triagem 
-    ? format(new Date(candidate.data_triagem), 'dd/MM/yyyy', { locale: ptBR }) 
+  const formattedTriagemDate = candidate.data_triagem
+    ? format(new Date(candidate.data_triagem), 'dd/MM/yyyy', { locale: ptBR })
     : 'N/A';
 
-  // CORREÇÃO: Hook useDrag para tornar o card arrastável
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'candidateCard',
     item: { id: candidate.id },
@@ -36,7 +36,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({ candidate, onViewDetails,
 
   return (
     <div
-      ref={drag} // CORREÇÃO: Atribuir a referência 'drag' ao div
+      ref={drag}
       className={`bg-white rounded-lg border shadow-sm mb-4 group relative 
                   transition-all duration-200 ease-out 
                   hover:shadow-md hover:-translate-y-1
@@ -55,24 +55,28 @@ const CandidateCard: React.FC<CandidateCardProps> = ({ candidate, onViewDetails,
             {candidate.score || 0}%
           </div>
         </div>
-        
+
+        {/* --- EXIBIÇÃO DO PERFIL COMPORTAMENTAL ADICIONADA AQUI --- */}
+        {candidate.perfil_comportamental && (
+            <p className="text-xs font-semibold text-indigo-600 mt-2 flex items-center bg-indigo-50 px-2 py-1 rounded-md">
+                <BrainCircuit size={14} className="mr-1.5 flex-shrink-0" />
+                Perfil: {candidate.perfil_comportamental}
+            </p>
+        )}
+
         {candidate.email && (
-          <p className="text-xs text-gray-500 mt-1 flex items-center">
+          <p className="text-xs text-gray-500 mt-2 flex items-center">
             <Mail size={16} className="mr-1 flex-shrink-0" /> {candidate.email}
           </p>
         )}
         <p className="text-xs text-gray-500 mt-1 flex items-center">
           <CalendarDays size={16} className="mr-1 flex-shrink-0" /> Triado em: {formattedTriagemDate}
         </p>
-
-        <p className="text-sm text-gray-600 mt-2 line-clamp-3 h-[60px]">
-          {candidate.resumo_ia || 'Sem resumo disponível.'}
-        </p>
       </div>
 
       {candidate.status?.value === 'Entrevista' && (
         <div className="border-t p-2 flex justify-end">
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); onScheduleInterview(candidate); }}
             className="flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 p-2 rounded-md hover:bg-indigo-50 transition-colors"
           >
