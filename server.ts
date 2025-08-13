@@ -664,11 +664,13 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
     }
 
     try {
-        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
+        const dataToPatch = {
             data_de_resposta: new Date().toISOString(),
             status: 'Processando',
             respostas: JSON.stringify(responses),
-        });
+        };
+
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), dataToPatch);
 
         const webhookPayload = {
             testId: parseInt(testId),
@@ -680,13 +682,22 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(webhookPayload),
         }).catch(webhookError => {
-            console.error("ERRO AO DISPARAR WEBHOOK (Fire and Forget):", webhookError);
+            console.error(`[WEBHOOK_ERROR] Erro ao disparar webhook para Teste ID: ${testId}:`, webhookError);
         });
 
         res.status(200).json({ success: true, message: 'Teste enviado para análise.' });
 
     } catch (error: any) {
-        console.error('Erro ao salvar respostas no Baserow (backend):', error);
+        // --- PONTO CRÍTICO: LOG DETALHADO DO ERRO ---
+        console.error(`\n\n--- ERRO GRAVE NO SUBMIT DO TESTE ID: ${testId} ---`);
+        console.error("Timestamp:", new Date().toISOString());
+        console.error("Mensagem de Erro:", error.message);
+        if (error.response && error.response.data) {
+            console.error("Detalhes da API (Baserow):", JSON.stringify(error.response.data, null, 2));
+        }
+        console.error("Stack Trace Completo:", error.stack);
+        console.error("--- FIM DO RELATÓRIO DE ERRO ---\n\n");
+        
         res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
     }
 });
