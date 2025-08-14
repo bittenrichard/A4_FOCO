@@ -5,8 +5,6 @@ dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
 import { google } from 'googleapis';
 import { baserowServer } from './src/shared/services/baserowServerClient.js';
 import fetch from 'node-fetch';
@@ -14,10 +12,8 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 
 const app = express();
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-
 const port = 3001;
+
 const upload = multer();
 
 const allowedOrigins = ['https://recrutamentoia.com.br', 'http://localhost:5173'];
@@ -35,37 +31,6 @@ app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// --- LÓGICA DO WEBSOCKET ---
-const clients = new Map<string, WebSocket>();
-
-wss.on('connection', (ws) => {
-  console.log('[WebSocket] Cliente conectado.');
-
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      if (data.type === 'subscribe' && data.testId) {
-        const testId = data.testId.toString();
-        clients.set(testId, ws);
-        console.log(`[WebSocket] Cliente inscrito para o Teste ID: ${testId}`);
-        ws.send(JSON.stringify({ type: 'subscribed', message: `Inscrito no teste ${testId}` }));
-      }
-    } catch (e) {
-      console.error('[WebSocket] Erro ao processar mensagem:', e);
-    }
-  });
-
-  ws.on('close', () => {
-    console.log('[WebSocket] Cliente desconectado.');
-    clients.forEach((socket, testId) => {
-      if (socket === ws) {
-        clients.delete(testId);
-        console.log(`[WebSocket] Cliente desinscrito do Teste ID: ${testId}`);
-      }
-    });
-  });
-});
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
   console.error("ERRO CRÍTICO: As credenciais do Google não foram encontradas...");
@@ -108,6 +73,9 @@ interface BaserowCandidate {
   escolaridade?: string | null;
   idade?: number | null;
 }
+
+// ... TODAS AS SUAS ROTAS DE AUTH, USERS, JOBS, ETC...
+// (O código abaixo é a continuação, certifique-se de que todo o seu arquivo está presente)
 
 app.post('/api/auth/signup', async (req: Request, res: Response) => {
   const { nome, empresa, telefone, email, password } = req.body;
