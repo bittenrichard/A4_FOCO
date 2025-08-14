@@ -1,4 +1,5 @@
-// CÓDIGO COMPLETO DO ARQUIVO
+// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
+
 import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
@@ -636,8 +637,7 @@ app.post('/api/google/calendar/create-event', async (req: Request, res: Response
   }
 });
 
-// --- NOVOS ENDPOINTS PARA O TESTE COMPORTAMENTAL ---
-
+// --- ROTA DO TESTE COMPORTAMENTAL ---
 app.post('/api/behavioral-test/generate', async (req: Request, res: Response) => {
   const { candidateId, recruiterId } = req.body;
   if (!candidateId || !recruiterId) {
@@ -658,6 +658,7 @@ app.post('/api/behavioral-test/generate', async (req: Request, res: Response) =>
   }
 });
 
+// --- ATENÇÃO: ESTE É O ENDPOINT CORRIGIDO ---
 app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
     const { testId, responses } = req.body;
     if (!testId || !responses) {
@@ -665,34 +666,48 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
     }
 
     try {
-        const dataToPatch = {
+        // CORREÇÃO 1: Atualiza o status para 'Processando' no banco de dados.
+        // Isso informa ao recrutador que a análise da IA já começou.
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
             data_de_resposta: new Date().toISOString(),
             respostas: JSON.stringify(responses),
-        };
-        
-        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), dataToPatch);
+            status: 'Processando', 
+        });
 
         const webhookPayload = {
             testId: parseInt(testId),
             responses,
         };
 
-        fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
+        // CORREÇÃO 2: Aguarda (await) a resposta completa do N8N.
+        // O servidor ficará "pausado" aqui até o N8N terminar e responder.
+        console.log(`[Server] Enviando dados do Teste ID ${testId} para o N8N e aguardando resposta...`);
+        const n8nResponse = await fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(webhookPayload),
-        }).catch(webhookError => {
-            console.error(`ERRO AO DISPARAR WEBHOOK para Teste ID: ${testId}:`, webhookError);
+            // @ts-ignore
+            timeout: 90000, // Aumenta o timeout para 90 segundos para dar tempo para a IA
         });
 
-        res.status(200).json({ success: true, message: 'Teste enviado para análise.' });
+        if (!n8nResponse.ok) {
+            const errorText = await n8nResponse.text();
+            console.error(`[Server] Erro na resposta do N8N para o Teste ID ${testId}:`, errorText);
+            throw new Error('Ocorreu um erro ao processar a análise do teste.');
+        }
+
+        const resultFromN8N = await n8nResponse.json();
+        console.log(`[Server] Resposta recebida do N8N para o Teste ID ${testId}.`);
+
+        // CORREÇÃO 3: Envia o resultado recebido do N8N de volta para o frontend.
+        // Agora o frontend receberá o objeto 'result' com todos os dados da análise.
+        res.status(200).json({ success: true, result: resultFromN8N });
 
     } catch (error: any) {
-        console.error(`ERRO GRAVE ao salvar respostas do Teste ID ${testId}:`, error.message);
-        if ((error as any).response && (error as any).response.data) {
-            console.error("Detalhes da API (Baserow):", JSON.stringify((error as any).response.data, null, 2));
-        }
-        res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
+        console.error(`[Server] ERRO GERAL no fluxo de submissão do Teste ID ${testId}:`, error.message);
+        // Atualiza o status para 'Erro' para que o recrutador saiba que algo deu errado.
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), { status: 'Erro' });
+        res.status(500).json({ error: 'Não foi possível processar o resultado do seu teste.' });
     }
 });
 
