@@ -1,12 +1,10 @@
-// CÓDIGO COMPLETO, FINAL E CORRIGIDO PARA server.ts
+// CÓDIGO COMPLETO E CORRIGIDO PARA server.ts
 
 import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
 import { google } from 'googleapis';
 import { baserowServer } from './src/shared/services/baserowServerClient.js';
 import fetch from 'node-fetch';
@@ -14,10 +12,8 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 
 const app = express();
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-
 const port = 3001;
+
 const upload = multer();
 
 const allowedOrigins = ['https://recrutamentoia.com.br', 'http://localhost:5173'];
@@ -36,35 +32,6 @@ app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const clients = new Map<string, WebSocket>();
-
-wss.on('connection', (ws) => {
-  console.log('[WebSocket] Cliente conectado.');
-
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      if (data.type === 'subscribe' && data.testId) {
-        const testId = data.testId.toString();
-        clients.set(testId, ws);
-        console.log(`[WebSocket] Cliente inscrito para o Teste ID: ${testId}`);
-        ws.send(JSON.stringify({ type: 'subscribed', message: `Inscrito no teste ${testId}` }));
-      }
-    } catch (e) {
-      console.error('[WebSocket] Erro ao processar mensagem:', e);
-    }
-  });
-
-  ws.on('close', () => {
-    console.log('[WebSocket] Cliente desconectado.');
-    clients.forEach((socket, testId) => {
-      if (socket === ws) {
-        clients.delete(testId);
-        console.log(`[WebSocket] Cliente desinscrito do Teste ID: ${testId}`);
-      }
-    });
-  });
-});
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
   console.error("ERRO CRÍTICO: As credenciais do Google não foram encontradas...");
@@ -107,6 +74,9 @@ interface BaserowCandidate {
   escolaridade?: string | null;
   idade?: number | null;
 }
+
+// ... TODAS AS SUAS ROTAS DE AUTH, USERS, JOBS, ETC. DEVEM ESTAR AQUI ...
+// O CÓDIGO ABAIXO É O ARQUIVO COMPLETO PARA GARANTIR QUE NÃO HÁ ERROS.
 
 app.post('/api/auth/signup', async (req: Request, res: Response) => {
   const { nome, empresa, telefone, email, password } = req.body;
@@ -600,56 +570,61 @@ app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Respons
     }
 });
 
+// ROTA DE SUBMISSÃO COM ABORDAGEM SÍNCRONA E CORRETA
 app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
     const { testId, responses } = req.body;
-    if (!testId || !responses) return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
+    if (!testId || !responses) {
+        return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
+    }
+
     try {
+        // Passo 1: Atualiza o status para 'Processando' ANTES de qualquer coisa.
         await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
             data_de_resposta: new Date().toISOString(),
             respostas: JSON.stringify(responses),
             status: 'Processando', 
         });
+
+        // Passo 2: Prepara e envia os dados para o N8N.
         const webhookPayload = { testId: parseInt(testId), responses };
-        fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
+        console.log(`[Server] Enviando dados para o N8N para o Teste ID: ${testId}...`);
+
+        const n8nResponse = await fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(webhookPayload),
-        }).catch(err => {
-            console.error(`[Server] Erro ao disparar webhook para Teste ID ${testId}:`, err);
         });
-        res.status(202).json({ success: true, message: "Teste recebido e está sendo processado." });
-    } catch (error: any) {
-        console.error(`[Server] Erro ao submeter Teste ID ${testId}:`, error.message);
-        res.status(500).json({ error: 'Não foi possível enviar seu teste.' });
-    }
-});
 
-app.post('/api/webhook/n8n-result', async (req: Request, res: Response) => {
-    const { testId, result } = req.body;
-    if (!testId || !result) return res.status(400).json({ error: 'testId e result são obrigatórios.' });
-    const testIdStr = testId.toString();
-    console.log(`[Webhook N8N] Resultado recebido para o Teste ID: ${testIdStr}`);
-    try {
-        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testIdStr), {
-            ...result,
+        console.log(`[Server] Resposta recebida do N8N com status: ${n8nResponse.status}`);
+
+        // Passo 3: Verifica se a resposta do N8N foi bem-sucedida.
+        if (!n8nResponse.ok) {
+            const errorText = await n8nResponse.text();
+            console.error(`[Server] Erro na resposta do N8N para o Teste ID ${testId}:`, errorText);
+            throw new Error('A análise da IA falhou.');
+        }
+
+        const resultFromN8N = await n8nResponse.json();
+
+        // Passo 4: Atualiza o registro no Baserow com os resultados da IA e o status 'Concluído'.
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
+            ...resultFromN8N, // Assume que o N8N retorna os campos corretos
             status: 'Concluído',
         });
-        if (clients.has(testIdStr)) {
-            const ws = clients.get(testIdStr);
-            const fullResultData = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testIdStr));
-            ws?.send(JSON.stringify({ type: 'result_ready', data: fullResultData }));
-            console.log(`[WebSocket] Resultado enviado para o cliente do Teste ID: ${testIdStr}`);
-            clients.delete(testIdStr);
-        } else {
-            console.log(`[WebSocket] Nenhum cliente à espera para o Teste ID: ${testIdStr}.`);
-        }
-        res.status(200).json({ success: true, message: 'Resultado recebido e processado.' });
+        
+        // Passo 5: Busca o registro completo e atualizado para retornar ao frontend.
+        const finalResult = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
+
+        res.status(200).json({ success: true, result: finalResult });
+
     } catch (error: any) {
-        console.error(`[Webhook N8N] Erro ao processar resultado para o Teste ID ${testIdStr}:`, error.message);
-        res.status(500).json({ error: 'Falha ao processar resultado.' });
+        console.error(`[Server] ERRO GERAL na submissão do Teste ID ${testId}:`, error.message);
+        // Em caso de erro, atualiza o status para 'Erro' para feedback ao recrutador.
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), { status: 'Erro' });
+        res.status(500).json({ error: 'Não foi possível processar o resultado do seu teste.' });
     }
 });
 
-server.listen(port, () => {
-  console.log(`Backend e WebSocket Server rodando em http://localhost:${port}`);
+app.listen(port, () => {
+  console.log(`Backend rodando em http://localhost:${port}`);
 });
