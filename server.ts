@@ -1,10 +1,12 @@
-// CÓDIGO COMPLETO E CORRIGIDO PARA server.ts
+// CÓDIGO COMPLETO, FINAL E CORRIGIDO PARA server.ts
 
 import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 import { google } from 'googleapis';
 import { baserowServer } from './src/shared/services/baserowServerClient.js';
 import fetch from 'node-fetch';
@@ -12,8 +14,10 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 
 const app = express();
-const port = 3001;
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
+const port = 3001;
 const upload = multer();
 
 const allowedOrigins = ['https://recrutamentoia.com.br', 'http://localhost:5173'];
@@ -31,6 +35,36 @@ app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const clients = new Map<string, WebSocket>();
+
+wss.on('connection', (ws) => {
+  console.log('[WebSocket] Cliente conectado.');
+
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message.toString());
+      if (data.type === 'subscribe' && data.testId) {
+        const testId = data.testId.toString();
+        clients.set(testId, ws);
+        console.log(`[WebSocket] Cliente inscrito para o Teste ID: ${testId}`);
+        ws.send(JSON.stringify({ type: 'subscribed', message: `Inscrito no teste ${testId}` }));
+      }
+    } catch (e) {
+      console.error('[WebSocket] Erro ao processar mensagem:', e);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('[WebSocket] Cliente desconectado.');
+    clients.forEach((socket, testId) => {
+      if (socket === ws) {
+        clients.delete(testId);
+        console.log(`[WebSocket] Cliente desinscrito do Teste ID: ${testId}`);
+      }
+    });
+  });
+});
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
   console.error("ERRO CRÍTICO: As credenciais do Google não foram encontradas...");
@@ -74,25 +108,18 @@ interface BaserowCandidate {
   idade?: number | null;
 }
 
-// ... TODAS AS SUAS ROTAS DE AUTH, USERS, JOBS, ETC...
-// (O código abaixo é a continuação, certifique-se de que todo o seu arquivo está presente)
-
 app.post('/api/auth/signup', async (req: Request, res: Response) => {
   const { nome, empresa, telefone, email, password } = req.body;
   if (!email || !password || !nome) {
     return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
   }
-
   try {
     const emailLowerCase = email.toLowerCase();
     const { results: existingUsers } = await baserowServer.get(USERS_TABLE_ID, `?filter__Email__equal=${emailLowerCase}`);
-
     if (existingUsers && existingUsers.length > 0) {
       return res.status(409).json({ error: 'Este e-mail já está cadastrado.' });
     }
-
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
     const newUser = await baserowServer.post(USERS_TABLE_ID, {
       nome,
       empresa,
@@ -100,7 +127,6 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
       Email: emailLowerCase,
       senha_hash: hashedPassword,
     });
-
     const userProfile = {
       id: newUser.id,
       nome: newUser.nome,
@@ -110,7 +136,6 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
       avatar_url: newUser.avatar_url || null,
       google_refresh_token: newUser.google_refresh_token || null,
     };
-
     res.status(201).json({ success: true, user: userProfile });
   } catch (error: any) {
     console.error('Erro no registro (backend):', error);
@@ -123,18 +148,14 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   if (!email || !password) {
     return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
   }
-
   try {
     const emailLowerCase = email.toLowerCase();
     const { results: users } = await baserowServer.get(USERS_TABLE_ID, `?filter__Email__equal=${emailLowerCase}`);
     const user = users && users[0];
-
     if (!user || !user.senha_hash) {
       return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
     }
-
     const passwordMatches = await bcrypt.compare(password, user.senha_hash);
-
     if (passwordMatches) {
       const userProfile = {
         id: user.id,
@@ -158,23 +179,18 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 app.patch('/api/users/:userId/profile', async (req: Request, res: Response) => {
   const { userId } = req.params;
   const { nome, empresa, avatar_url } = req.body;
-
   if (!userId) {
     return res.status(400).json({ error: 'ID do usuário é obrigatório.' });
   }
-
   try {
     const updatedData: Record<string, any> = {};
     if (nome !== undefined) updatedData.nome = nome;
     if (empresa !== undefined) updatedData.empresa = empresa;
     if (avatar_url !== undefined) updatedData.avatar_url = avatar_url;
-
     if (Object.keys(updatedData).length === 0) {
       return res.status(400).json({ error: 'Nenhum dado para atualizar.' });
     }
-
     const updatedUser = await baserowServer.patch(USERS_TABLE_ID, parseInt(userId), updatedData);
-
     const userProfile = {
       id: updatedUser.id,
       nome: updatedUser.nome,
@@ -184,7 +200,6 @@ app.patch('/api/users/:userId/profile', async (req: Request, res: Response) => {
       avatar_url: updatedUser.avatar_url || null,
       google_refresh_token: updatedUser.google_refresh_token || null,
     };
-
     res.status(200).json({ success: true, user: userProfile });
   } catch (error: any) {
     console.error('Erro ao atualizar perfil (backend):', error);
@@ -195,14 +210,12 @@ app.patch('/api/users/:userId/profile', async (req: Request, res: Response) => {
 app.patch('/api/users/:userId/password', async (req: Request, res: Response) => {
   const { userId } = req.params;
   const { password } = req.body;
-
   if (!userId || !password) {
     return res.status(400).json({ error: 'ID do usuário e nova senha são obrigatórios.' });
   }
   if (password.length < 6) {
     return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres.' });
   }
-
   try {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     await baserowServer.patch(USERS_TABLE_ID, parseInt(userId), { senha_hash: hashedPassword });
@@ -244,17 +257,13 @@ app.post('/api/upload-avatar', upload.single('avatar'), async (req: Request, res
   if (!userId || !req.file) {
     return res.status(400).json({ error: 'Arquivo e ID do usuário são obrigatórios.' });
   }
-
   try {
     const fileBuffer = req.file.buffer;
     const fileName = req.file.originalname;
     const mimetype = req.file.mimetype;
-
     const uploadedFile = await baserowServer.uploadFileFromBuffer(fileBuffer, fileName, mimetype);
     const newAvatarUrl = uploadedFile.url;
-
     const updatedUser = await baserowServer.patch(USERS_TABLE_ID, parseInt(userId), { avatar_url: newAvatarUrl });
-
     const userProfile = {
       id: updatedUser.id,
       nome: updatedUser.nome,
@@ -265,7 +274,6 @@ app.post('/api/upload-avatar', upload.single('avatar'), async (req: Request, res
       google_refresh_token: updatedUser.google_refresh_token || null,
     };
     res.json({ success: true, avatar_url: newAvatarUrl, user: userProfile });
-
   } catch (error: any) {
     console.error('Erro ao fazer upload de avatar (backend):', error);
     res.status(500).json({ error: error.message || 'Não foi possível fazer upload do avatar.' });
@@ -277,7 +285,6 @@ app.post('/api/jobs', async (req: Request, res: Response) => {
   if (!titulo || !descricao || !usuario || usuario.length === 0) {
     return res.status(400).json({ error: 'Título, descrição e ID do usuário são obrigatórios.' });
   }
-
   try {
     const createdJob = await baserowServer.post(VAGAS_TABLE_ID, {
       titulo,
@@ -300,7 +307,6 @@ app.patch('/api/jobs/:jobId', async (req: Request, res: Response) => {
   if (!jobId || Object.keys(updatedData).length === 0) {
     return res.status(400).json({ error: 'ID da vaga e dados para atualização são obrigatórios.' });
   }
-
   try {
     const updatedJob = await baserowServer.patch(VAGAS_TABLE_ID, parseInt(jobId), updatedData);
     res.json(updatedJob);
@@ -315,7 +321,6 @@ app.delete('/api/jobs/:jobId', async (req: Request, res: Response) => {
   if (!jobId) {
     return res.status(400).json({ error: 'ID da vaga é obrigatório.' });
   }
-
   try {
     await baserowServer.delete(VAGAS_TABLE_ID, parseInt(jobId));
     res.status(204).send();
@@ -328,16 +333,13 @@ app.delete('/api/jobs/:jobId', async (req: Request, res: Response) => {
 app.patch('/api/candidates/:candidateId/status', async (req: Request, res: Response) => {
   const { candidateId } = req.params;
   const { status } = req.body;
-
   if (!candidateId || !status) {
     return res.status(400).json({ error: 'ID do candidato e status são obrigatórios.' });
   }
-
   const validStatuses = ['Triagem', 'Entrevista', 'Aprovado', 'Reprovado'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ error: 'Status inválido fornecido.' });
   }
-
   try {
     const updatedCandidate = await baserowServer.patch(CANDIDATOS_TABLE_ID, parseInt(candidateId), { status: status });
     res.json(updatedCandidate);
@@ -352,65 +354,46 @@ app.get('/api/data/all/:userId', async (req: Request, res: Response) => {
   if (!userId) {
     return res.status(400).json({ error: 'ID do usuário é obrigatório.' });
   }
-
   try {
     const jobsResult = await baserowServer.get(VAGAS_TABLE_ID, '');
     const allJobs: BaserowJobPosting[] = (jobsResult.results || []) as BaserowJobPosting[];
     const userJobs = allJobs.filter((job: BaserowJobPosting) =>
       job.usuario && job.usuario.some((user: any) => user.id === parseInt(userId))
     );
-
     const userJobIds = new Set(userJobs.map(job => job.id));
     const jobsMapByTitle = new Map<string, BaserowJobPosting>(userJobs.map((job: BaserowJobPosting) => [job.titulo.toLowerCase().trim(), job]));
     const jobsMapById = new Map<number, BaserowJobPosting>(userJobs.map((job: BaserowJobPosting) => [job.id, job]));
-
     const regularCandidatesResult = await baserowServer.get(CANDIDATOS_TABLE_ID, '');
     const whatsappCandidatesResult = await baserowServer.get(WHATSAPP_CANDIDATOS_TABLE_ID, '');
-
     const allCandidatesRaw: BaserowCandidate[] = [
       ...(regularCandidatesResult.results || []),
       ...(whatsappCandidatesResult.results || [])
     ] as BaserowCandidate[];
-
     const userCandidatesRaw = allCandidatesRaw.filter((candidate: BaserowCandidate) => {
-      if (candidate.usuario && candidate.usuario.some((u: any) => u.id === parseInt(userId))) {
-        return true;
-      }
-
+      if (candidate.usuario && candidate.usuario.some((u: any) => u.id === parseInt(userId))) return true;
       if (candidate.vaga && typeof candidate.vaga === 'string') {
         const jobMatch = jobsMapByTitle.get(candidate.vaga.toLowerCase().trim());
         return !!jobMatch;
       }
-
       if (candidate.vaga && Array.isArray(candidate.vaga) && candidate.vaga.length > 0) {
         const vagaId = (candidate.vaga[0] as { id: number; value: string }).id;
         return userJobIds.has(vagaId);
       }
-
       return false;
     });
-
     const syncedCandidates = userCandidatesRaw.map((candidate: BaserowCandidate) => {
       const newCandidate = { ...candidate };
       let vagaLink: { id: number; value: string }[] | null = null;
-
       if (candidate.vaga && typeof candidate.vaga === 'string') {
         const jobMatch = jobsMapByTitle.get(candidate.vaga.toLowerCase().trim());
-        if (jobMatch) {
-          vagaLink = [{ id: jobMatch.id, value: jobMatch.titulo }];
-        }
+        if (jobMatch) vagaLink = [{ id: jobMatch.id, value: jobMatch.titulo }];
       } else if (candidate.vaga && Array.isArray(candidate.vaga) && candidate.vaga.length > 0) {
         const linkedVaga = candidate.vaga[0] as { id: number; value: string };
-        if (jobsMapById.has(linkedVaga.id)) {
-          vagaLink = [{ id: linkedVaga.id, value: linkedVaga.value }];
-        }
+        if (jobsMapById.has(linkedVaga.id)) vagaLink = [{ id: linkedVaga.id, value: linkedVaga.value }];
       }
-
       return { ...newCandidate, vaga: vagaLink };
     });
-
     res.json({ jobs: userJobs, candidates: syncedCandidates });
-
   } catch (error: any) {
     console.error('Erro ao buscar todos os dados (backend):', error);
     res.status(500).json({ error: 'Falha ao carregar dados.' });
@@ -420,20 +403,14 @@ app.get('/api/data/all/:userId', async (req: Request, res: Response) => {
 app.post('/api/upload-curriculums', upload.array('curriculumFiles'), async (req: Request, res: Response) => {
   const { jobId, userId } = req.body;
   const files = req.files as Express.Multer.File[];
-
   if (!jobId || !userId || !files || files.length === 0) {
     return res.status(400).json({ error: 'Vaga, usuário e arquivos de currículo são obrigatórios.' });
   }
-
   try {
     const newCandidateEntries = [];
     for (const file of files) {
-      if (file.size > 5 * 1024 * 1024) {
-        return res.status(400).json({ success: false, message: `O arquivo '${file.originalname}' é muito grande. O limite é de 5MB.` });
-      }
-
+      if (file.size > 5 * 1024 * 1024) return res.status(400).json({ success: false, message: `O arquivo '${file.originalname}' é muito grande. O limite é de 5MB.` });
       const uploadedFile = await baserowServer.uploadFileFromBuffer(file.buffer, file.originalname, file.mimetype);
-
       const newCandidateData = {
         nome: file.originalname.split('.')[0] || 'Novo Candidato',
         curriculo: [{ name: uploadedFile.name, url: uploadedFile.url }],
@@ -443,58 +420,30 @@ app.post('/api/upload-curriculums', upload.array('curriculumFiles'), async (req:
         resumo_ia: null,
         status: 'Triagem',
       };
-
       const createdCandidate = await baserowServer.post(CANDIDATOS_TABLE_ID, newCandidateData);
       newCandidateEntries.push(createdCandidate);
     }
-
     const N8N_TRIAGEM_WEBHOOK_URL = 'https://webhook.focoserv.com.br/webhook/recrutamento';
-
     const jobInfo = await baserowServer.getRow(VAGAS_TABLE_ID, parseInt(jobId as string));
     const userInfo = await baserowServer.getRow(USERS_TABLE_ID, parseInt(userId as string));
-
     if (N8N_TRIAGEM_WEBHOOK_URL && newCandidateEntries.length > 0 && jobInfo && userInfo) {
       const candidatosParaWebhook = newCandidateEntries.map(candidate => ({
-        id: candidate.id,
-        nome: candidate.nome,
-        email: candidate.email,
-        telefone: candidate.telefone,
-        curriculo_url: candidate.curriculo?.[0]?.url,
-        status: candidate.status
+        id: candidate.id, nome: candidate.nome, email: candidate.email, telefone: candidate.telefone,
+        curriculo_url: candidate.curriculo?.[0]?.url, status: candidate.status
       }));
-
       const webhookPayload = {
         tipo: 'triagem_curriculo_lote',
-        recrutador: {
-          id: userInfo.id,
-          nome: userInfo.nome,
-          email: userInfo.Email,
-          empresa: userInfo.empresa
-        },
-        vaga: {
-          id: jobInfo.id,
-          titulo: jobInfo.titulo,
-          descricao: jobInfo.descricao,
-          endereco: jobInfo.Endereco,
-          requisitos_obrigatorios: jobInfo.requisitos_obrigatorios,
-          requisitos_desejaveis: jobInfo.requisitos_desejaveis
-        },
+        recrutador: { id: userInfo.id, nome: userInfo.nome, email: userInfo.Email, empresa: userInfo.empresa },
+        vaga: { id: jobInfo.id, titulo: jobInfo.titulo, descricao: jobInfo.descricao, endereco: jobInfo.Endereco, requisitos_obrigatorios: jobInfo.requisitos_obrigatorios, requisitos_desejaveis: jobInfo.requisitos_desejaveis },
         candidatos: candidatosParaWebhook
       };
-
       try {
-        await fetch(N8N_TRIAGEM_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webhookPayload)
-        });
+        await fetch(N8N_TRIAGEM_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(webhookPayload) });
       } catch (webhookError) {
         console.error("Erro ao disparar o webhook para o n8n (triagem em lote):", webhookError);
       }
     }
-
     res.json({ success: true, message: `${files.length} currículo(s) enviado(s) para análise!`, newCandidates: newCandidateEntries });
-
   } catch (error: any) {
     console.error('Erro no upload de currículos (backend):', error);
     res.status(500).json({ success: false, message: error.message || 'Falha ao fazer upload dos currículos.' });
@@ -503,10 +452,7 @@ app.post('/api/upload-curriculums', upload.array('curriculumFiles'), async (req:
 
 app.get('/api/schedules/:userId', async (req: Request, res: Response) => {
   const { userId } = req.params;
-  if (!userId) {
-    return res.status(400).json({ error: 'ID do usuário é obrigatório.' });
-  }
-
+  if (!userId) return res.status(400).json({ error: 'ID do usuário é obrigatório.' });
   try {
     const { results } = await baserowServer.get(AGENDAMENTOS_TABLE_ID, `?filter__Candidato__usuario__link_row_has=${userId}`);
     res.json({ success: true, results: results || [] });
@@ -518,44 +464,24 @@ app.get('/api/schedules/:userId', async (req: Request, res: Response) => {
 
 app.get('/api/google/auth/connect', (req: Request, res: Response) => {
   const { userId } = req.query;
-  if (!userId) {
-    return res.status(400).json({ error: 'userId é obrigatório' });
-  }
-
+  if (!userId) return res.status(400).json({ error: 'userId é obrigatório' });
   const scopes = ['https://www.googleapis.com/auth/calendar.events'];
-
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: scopes,
-    prompt: 'consent',
-    state: userId.toString(),
-  });
-
+  const url = oauth2Client.generateAuthUrl({ access_type: 'offline', scope: scopes, prompt: 'consent', state: userId.toString() });
   res.json({ url });
 });
 
 app.get('/api/google/auth/callback', async (req: Request, res: Response) => {
   const { code, state: userId } = req.query;
   const closePopupScript = `<script>window.close();</script>`;
-
-  if (!code || !userId) {
-    return res.send(closePopupScript);
-  }
-
+  if (!code || !userId) return res.send(closePopupScript);
   try {
     const { tokens } = await oauth2Client.getToken(code as string);
     const { refresh_token } = tokens;
-
     if (refresh_token) {
-      await baserowServer.patch(USERS_TABLE_ID, parseInt(userId as string), {
-        google_refresh_token: refresh_token
-      });
+      await baserowServer.patch(USERS_TABLE_ID, parseInt(userId as string), { google_refresh_token: refresh_token });
     }
-
     oauth2Client.setCredentials(tokens);
-
     res.send(closePopupScript);
-
   } catch (error: any) {
     console.error('[Google Auth Callback] ERRO DETALHADO na troca de código por token:', error.response?.data || error.message);
     res.status(500).send(`<html><body><h1>Erro na Autenticação</h1></body></html>`);
@@ -583,23 +509,14 @@ app.get('/api/google/auth/status', async (req: Request, res: Response) => {
 
 app.post('/api/google/calendar/create-event', async (req: Request, res: Response) => {
   const { userId, eventData, candidate, job } = req.body;
-  if (!userId || !eventData || !candidate || !job) {
-    return res.status(400).json({ success: false, message: 'Dados insuficientes.' });
-  }
-
+  if (!userId || !eventData || !candidate || !job) return res.status(400).json({ success: false, message: 'Dados insuficientes.' });
   try {
     const userResponse = await baserowServer.getRow(USERS_TABLE_ID, parseInt(userId));
     const refreshToken = userResponse.google_refresh_token;
-    if (!refreshToken) {
-      return res.status(401).json({ success: false, message: 'Usuário não conectado ao Google Calendar. Por favor, conecte sua conta em "Configurações".' });
-    }
-
+    if (!refreshToken) return res.status(401).json({ success: false, message: 'Usuário não conectado ao Google Calendar.' });
     oauth2Client.setCredentials({ refresh_token: refreshToken });
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    const eventDescription = `Entrevista com o candidato: ${candidate.nome}.\n` +
-      `Telefone: ${candidate.telefone || 'Não informado'}\n\n` +
-      `--- Detalhes adicionais ---\n` +
-      `${eventData.details || 'Nenhum detalhe adicional.'}`;
+    const eventDescription = `Entrevista com o candidato: ${candidate.nome}.\nTelefone: ${candidate.telefone || 'Não informado'}\n\n--- Detalhes adicionais ---\n${eventData.details || 'Nenhum detalhe adicional.'}`;
     const event = {
       summary: eventData.title,
       description: eventDescription,
@@ -607,35 +524,18 @@ app.post('/api/google/calendar/create-event', async (req: Request, res: Response
       end: { dateTime: eventData.end, timeZone: 'America/Sao_Paulo' },
       reminders: { useDefault: true },
     };
-
-    const response = await calendar.events.insert({
-      calendarId: 'primary', requestBody: event,
-    });
-
+    const response = await calendar.events.insert({ calendarId: 'primary', requestBody: event });
     await baserowServer.post(AGENDAMENTOS_TABLE_ID, {
-      'Título': eventData.title,
-      'Início': eventData.start,
-      'Fim': eventData.end,
-      'Detalhes': eventData.details,
-      'Candidato': [candidate.id],
-      'Vaga': [job.id],
-      'google_event_link': response.data.htmlLink
+      'Título': eventData.title, 'Início': eventData.start, 'Fim': eventData.end, 'Detalhes': eventData.details,
+      'Candidato': [candidate.id], 'Vaga': [job.id], 'google_event_link': response.data.htmlLink
     });
-
     if (process.env.N8N_SCHEDULE_WEBHOOK_URL) {
       const webhookPayload = {
         recruiter: userResponse, candidate: candidate, job: job,
-        interview: {
-          title: eventData.title, startTime: eventData.start, endTime: eventData.end,
-          details: eventData.details, googleEventLink: response.data.htmlLink
-        }
+        interview: { title: eventData.title, startTime: eventData.start, endTime: eventData.end, details: eventData.details, googleEventLink: response.data.htmlLink }
       };
       try {
-        await fetch(process.env.N8N_SCHEDULE_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webhookPayload)
-        });
+        await fetch(process.env.N8N_SCHEDULE_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(webhookPayload) });
       } catch (webhookError) {
         console.error("Erro ao disparar o webhook para o n8n:", webhookError);
       }
@@ -649,17 +549,13 @@ app.post('/api/google/calendar/create-event', async (req: Request, res: Response
 
 app.post('/api/behavioral-test/generate', async (req: Request, res: Response) => {
   const { candidateId, recruiterId } = req.body;
-  if (!candidateId || !recruiterId) {
-    return res.status(400).json({ error: 'ID do candidato e do recrutador são obrigatórios.' });
-  }
-
+  if (!candidateId || !recruiterId) return res.status(400).json({ error: 'ID do candidato e do recrutador são obrigatórios.' });
   try {
     const newTestEntry = await baserowServer.post(TESTE_COMPORTAMENTAL_TABLE_ID, {
       candidato: [parseInt(candidateId as string)],
       recrutador: [parseInt(recruiterId as string)],
       status: 'Pendente',
     });
-
     res.status(201).json({ success: true, testId: newTestEntry.id });
   } catch (error: any) {
     console.error('Erro ao gerar link do teste comportamental:', error);
@@ -669,14 +565,10 @@ app.post('/api/behavioral-test/generate', async (req: Request, res: Response) =>
 
 app.get('/api/public/behavioral-test/:testId', async (req: Request, res: Response) => {
     const { testId } = req.params;
-    if (!testId) {
-        return res.status(400).json({ error: 'ID do teste é obrigatório.' });
-    }
+    if (!testId) return res.status(400).json({ error: 'ID do teste é obrigatório.' });
     try {
         const result = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
-        if (!result) {
-            return res.status(404).json({ error: 'Teste não encontrado.' });
-        }
+        if (!result) return res.status(404).json({ error: 'Teste não encontrado.' });
         res.json({ success: true, data: { candidateName: result.candidato[0]?.value } });
     } catch (error: any) {
         res.status(500).json({ error: 'Não foi possível buscar os dados do teste.' });
@@ -685,9 +577,7 @@ app.get('/api/public/behavioral-test/:testId', async (req: Request, res: Respons
 
 app.get('/api/behavioral-test/results/recruiter/:recruiterId', async (req: Request, res: Response) => {
   const { recruiterId } = req.params;
-  if (!recruiterId) {
-    return res.status(400).json({ error: 'ID do recrutador é obrigatório.' });
-  }
+  if (!recruiterId) return res.status(400).json({ error: 'ID do recrutador é obrigatório.' });
   try {
     const { results } = await baserowServer.get(TESTE_COMPORTAMENTAL_TABLE_ID, `?filter__recrutador__link_row_has=${recruiterId}&order_by=-data_de_resposta`);
     res.json({ success: true, data: results || [] });
@@ -699,14 +589,10 @@ app.get('/api/behavioral-test/results/recruiter/:recruiterId', async (req: Reque
 
 app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Response) => {
     const { testId } = req.params;
-    if (!testId) {
-        return res.status(400).json({ error: 'ID do teste é obrigatório.' });
-    }
+    if (!testId) return res.status(400).json({ error: 'ID do teste é obrigatório.' });
     try {
         const result = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId));
-        if (!result) {
-            return res.status(404).json({ error: 'Resultado do teste não encontrado.' });
-        }
+        if (!result) return res.status(404).json({ error: 'Resultado do teste não encontrado.' });
         res.json({ success: true, data: result });
     } catch (error: any) {
         console.error(`Erro ao buscar resultado do teste ${testId} (backend):`, error);
@@ -716,17 +602,13 @@ app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Respons
 
 app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
     const { testId, responses } = req.body;
-    if (!testId || !responses) {
-        return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
-    }
-
+    if (!testId || !responses) return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
     try {
         await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
             data_de_resposta: new Date().toISOString(),
             respostas: JSON.stringify(responses),
             status: 'Processando', 
         });
-
         const webhookPayload = { testId: parseInt(testId), responses };
         fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
             method: 'POST',
@@ -735,9 +617,7 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
         }).catch(err => {
             console.error(`[Server] Erro ao disparar webhook para Teste ID ${testId}:`, err);
         });
-
         res.status(202).json({ success: true, message: "Teste recebido e está sendo processado." });
-
     } catch (error: any) {
         console.error(`[Server] Erro ao submeter Teste ID ${testId}:`, error.message);
         res.status(500).json({ error: 'Não foi possível enviar seu teste.' });
@@ -746,33 +626,24 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
 
 app.post('/api/webhook/n8n-result', async (req: Request, res: Response) => {
     const { testId, result } = req.body;
-    
-    if (!testId || !result) {
-        return res.status(400).json({ error: 'testId e result são obrigatórios.' });
-    }
-
+    if (!testId || !result) return res.status(400).json({ error: 'testId e result são obrigatórios.' });
     const testIdStr = testId.toString();
     console.log(`[Webhook N8N] Resultado recebido para o Teste ID: ${testIdStr}`);
-
     try {
         await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testIdStr), {
             ...result,
             status: 'Concluído',
         });
-        
         if (clients.has(testIdStr)) {
             const ws = clients.get(testIdStr);
             const fullResultData = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testIdStr));
-
             ws?.send(JSON.stringify({ type: 'result_ready', data: fullResultData }));
             console.log(`[WebSocket] Resultado enviado para o cliente do Teste ID: ${testIdStr}`);
             clients.delete(testIdStr);
         } else {
             console.log(`[WebSocket] Nenhum cliente à espera para o Teste ID: ${testIdStr}.`);
         }
-        
         res.status(200).json({ success: true, message: 'Resultado recebido e processado.' });
-
     } catch (error: any) {
         console.error(`[Webhook N8N] Erro ao processar resultado para o Teste ID ${testIdStr}:`, error.message);
         res.status(500).json({ error: 'Falha ao processar resultado.' });

@@ -1,3 +1,5 @@
+// CÓDIGO COMPLETO E CORRIGIDO PARA PublicTestPage.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ADJECTIVES_STEP_1, ADJECTIVES_STEP_2 } from '../data/questions';
 import { Loader2, AlertCircle, BrainCircuit } from 'lucide-react';
@@ -166,3 +168,5 @@ const PublicTestPage: React.FC<{ testId: string }> = ({ testId }) => {
         </div>
     );
 };
+
+export default PublicTestPage;
