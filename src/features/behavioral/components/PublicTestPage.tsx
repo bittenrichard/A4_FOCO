@@ -1,5 +1,4 @@
-// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ADJECTIVES_STEP_1, ADJECTIVES_STEP_2 } from '../data/questions';
 import { Loader2, AlertCircle, BrainCircuit } from 'lucide-react';
 import ProgressBar from '../../../shared/components/Layout/ProgressBar/index';
@@ -17,7 +16,6 @@ const AdjectiveButton: React.FC<{
     </button>
 );
 
-// --- NOVO COMPONENTE DE TELA DE PROCESSAMENTO ---
 const ProcessingState: React.FC = () => (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
         <div className="relative flex items-center justify-center mb-8">
@@ -25,7 +23,7 @@ const ProcessingState: React.FC = () => (
             <BrainCircuit className="h-12 w-12 text-indigo-600 absolute" />
         </div>
         <h1 className="text-3xl font-bold text-gray-800">Analisando suas respostas...</h1>
-        <p className="text-gray-600 mt-3 max-w-md">Nossa Inteligência Artificial está gerando seu perfil comportamental. Por favor, aguarde, isso pode levar alguns instantes.</p>
+        <p className="text-gray-600 mt-3 max-w-md">Nossa Inteligência Artificial está gerando seu perfil comportamental. Por favor, aguarde, isso pode levar alguns instantes e a página será atualizada automaticamente.</p>
     </div>
 );
 
@@ -37,14 +35,41 @@ const PublicTestPage: React.FC<{ testId: string }> = ({ testId }) => {
     const [error, setError] = useState<string | null>(null);
     const [candidateName, setCandidateName] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
-    // --- NOVO ESTADO PARA GUARDAR O RESULTADO ---
     const [resultData, setResultData] = useState<BehavioralTestResult | null>(null);
-    
+    const [isWaitingForResults, setIsWaitingForResults] = useState(false);
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
     const SELECTIONS_MINIMUM = 6;
 
+    // --- LÓGICA DE POLLING ---
     useEffect(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [step]);
+        if (isWaitingForResults) {
+            const pollForResult = async () => {
+                try {
+                    console.log("Polling for results...");
+                    const res = await fetch(`${API_BASE_URL}/api/behavioral-test/result/${testId}`);
+                    const { data } = await res.json();
+                    
+                    if (res.ok && data.status === 'Concluído') {
+                        setResultData(data);
+                        setIsWaitingForResults(false); // Para o polling
+                    }
+                } catch (err) {
+                    console.error("Polling error:", err);
+                }
+            };
+            
+            pollingIntervalRef.current = setInterval(pollForResult, 5000); // Verifica a cada 5 segundos
+        }
+
+        // Limpeza: para o polling se o componente for desmontado
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
+        };
+    }, [isWaitingForResults, testId]);
+
 
     useEffect(() => {
         const fetchTestData = async () => {
@@ -80,26 +105,30 @@ const PublicTestPage: React.FC<{ testId: string }> = ({ testId }) => {
         setIsSubmitting(true);
         setError(null);
         try {
-            // A chamada agora espera o backend receber a resposta da IA
             const response = await fetch(`${API_BASE_URL}/api/behavioral-test/submit`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ testId, responses: { step1: step1Answers, step2: step2Answers } }),
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Falha ao processar o teste.');
-            // Armazena o resultado completo no estado
-            setResultData(data.result);
+            
+            // O backend agora responde rápido (202 Accepted)
+            if (response.status !== 202) {
+                const data = await response.json();
+                throw new Error(data.error || 'Falha ao enviar o teste.');
+            }
+
+            // Inicia o estado de espera e o polling
+            setIsWaitingForResults(true);
+
         } catch (err: any) {
             setError(err.message);
-        } finally {
-            // Não precisamos mais de 'setIsSubmitting(false)' aqui, pois a tela mudará
+            setIsSubmitting(false); // Permite tentar novamente em caso de erro no envio
         }
     };
     
     // --- LÓGICA DE RENDERIZAÇÃO ATUALIZADA ---
     if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-100"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>;
-    if (isSubmitting && !resultData) return <ProcessingState />;
+    if (isWaitingForResults && !resultData) return <ProcessingState />;
     if (resultData) return <CandidateResultDisplay result={resultData} candidateName={candidateName} />;
 
     const currentAnswers = step === 1 ? step1Answers : step2Answers;
@@ -126,7 +155,7 @@ const PublicTestPage: React.FC<{ testId: string }> = ({ testId }) => {
                     {step === 1 ? (
                         <button onClick={handleNextStep} disabled={currentAnswers.length < SELECTIONS_MINIMUM} className="px-8 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50">Próximo Passo</button>
                     ) : (
-                        <button onClick={handleSubmit} disabled={currentAnswers.length < SELECTIONS_MINIMUM} className="px-8 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors disabled:opacity-50">Finalizar e Ver Resultado</button>
+                        <button onClick={handleSubmit} disabled={isSubmitting || currentAnswers.length < SELECTIONS_MINIMUM} className="px-8 py-3 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors disabled:opacity-50">{isSubmitting ? <Loader2 className="animate-spin" /> : 'Finalizar e Ver Resultado'}</button>
                     )}
                 </div>
             </div>
