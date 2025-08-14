@@ -1,10 +1,12 @@
-// CÓDIGO COMPLETO E CORRIGIDO PARA server.ts
+// CÓDIGO COMPLETO, FINAL E CORRIGIDO PARA server.ts
 
 import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 import { google } from 'googleapis';
 import { baserowServer } from './src/shared/services/baserowServerClient.js';
 import fetch from 'node-fetch';
@@ -12,8 +14,10 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 
 const app = express();
-const port = 3001;
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
+const port = 3001;
 const upload = multer();
 
 const allowedOrigins = ['https://recrutamentoia.com.br', 'http://localhost:5173'];
@@ -32,6 +36,35 @@ app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const clients = new Map<string, WebSocket>();
+
+wss.on('connection', (ws) => {
+  console.log('[WebSocket] Cliente conectado.');
+
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message.toString());
+      if (data.type === 'subscribe' && data.testId) {
+        const testId = data.testId.toString();
+        clients.set(testId, ws);
+        console.log(`[WebSocket] Cliente inscrito para o Teste ID: ${testId}`);
+        ws.send(JSON.stringify({ type: 'subscribed', message: `Inscrito no teste ${testId}` }));
+      }
+    } catch (e) {
+      console.error('[WebSocket] Erro ao processar mensagem:', e);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('[WebSocket] Cliente desconectado.');
+    clients.forEach((socket, testId) => {
+      if (socket === ws) {
+        clients.delete(testId);
+        console.log(`[WebSocket] Cliente desinscrito do Teste ID: ${testId}`);
+      }
+    });
+  });
+});
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
   console.error("ERRO CRÍTICO: As credenciais do Google não foram encontradas...");
@@ -74,9 +107,6 @@ interface BaserowCandidate {
   escolaridade?: string | null;
   idade?: number | null;
 }
-
-// ... TODAS AS SUAS ROTAS DE AUTH, USERS, JOBS, ETC. DEVEM ESTAR AQUI ...
-// O CÓDIGO ABAIXO É O ARQUIVO COMPLETO PARA GARANTIR QUE NÃO HÁ ERROS.
 
 app.post('/api/auth/signup', async (req: Request, res: Response) => {
   const { nome, empresa, telefone, email, password } = req.body;
@@ -596,6 +626,32 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
     }
 });
 
-app.listen(port, () => {
-  console.log(`Backend rodando em http://localhost:${port}`);
+app.post('/api/webhook/n8n-result', async (req: Request, res: Response) => {
+    const { testId, result } = req.body;
+    if (!testId || !result) return res.status(400).json({ error: 'testId e result são obrigatórios.' });
+    const testIdStr = testId.toString();
+    console.log(`[Webhook N8N] Resultado recebido para o Teste ID: ${testIdStr}`);
+    try {
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testIdStr), {
+            ...result,
+            status: 'Concluído',
+        });
+        if (clients.has(testIdStr)) {
+            const ws = clients.get(testIdStr);
+            const fullResultData = await baserowServer.getRow(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testIdStr));
+            ws?.send(JSON.stringify({ type: 'result_ready', data: fullResultData }));
+            console.log(`[WebSocket] Resultado enviado para o cliente do Teste ID: ${testIdStr}`);
+            clients.delete(testIdStr);
+        } else {
+            console.log(`[WebSocket] Nenhum cliente à espera para o Teste ID: ${testIdStr}.`);
+        }
+        res.status(200).json({ success: true, message: 'Resultado recebido e processado.' });
+    } catch (error: any) {
+        console.error(`[Webhook N8N] Erro ao processar resultado para o Teste ID ${testIdStr}:`, error.message);
+        res.status(500).json({ error: 'Falha ao processar resultado.' });
+    }
+});
+
+server.listen(port, () => {
+  console.log(`Backend e WebSocket Server rodando em http://localhost:${port}`);
 });
