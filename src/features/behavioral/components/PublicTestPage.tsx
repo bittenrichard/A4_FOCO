@@ -1,3 +1,5 @@
+// CÓDIGO COMPLETO E CORRIGIDO PARA PublicTestPage.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ADJECTIVES_STEP_1, ADJECTIVES_STEP_2 } from '../data/questions';
 import { Loader2, AlertCircle, BrainCircuit } from 'lucide-react';
@@ -6,6 +8,7 @@ import { BehavioralTestResult } from '../types';
 import CandidateResultDisplay from './CandidateResultDisplay';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const WS_URL = API_BASE_URL.replace(/^http/, 'ws');
 
 const AdjectiveButton: React.FC<{
   adjective: string, isSelected: boolean, onClick: () => void
@@ -23,7 +26,7 @@ const ProcessingState: React.FC = () => (
             <BrainCircuit className="h-12 w-12 text-indigo-600 absolute" />
         </div>
         <h1 className="text-3xl font-bold text-gray-800">Analisando suas respostas...</h1>
-        <p className="text-gray-600 mt-3 max-w-md">Nossa Inteligência Artificial está gerando seu perfil comportamental. Por favor, aguarde, isso pode levar alguns instantes e a página será atualizada automaticamente.</p>
+        <p className="text-gray-600 mt-3 max-w-md">Nossa Inteligência Artificial está gerando seu perfil comportamental. Por favor, aguarde, a página será atualizada automaticamente assim que o resultado estiver pronto.</p>
     </div>
 );
 
@@ -37,39 +40,45 @@ const PublicTestPage: React.FC<{ testId: string }> = ({ testId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [resultData, setResultData] = useState<BehavioralTestResult | null>(null);
     const [isWaitingForResults, setIsWaitingForResults] = useState(false);
-    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    
+    const ws = useRef<WebSocket | null>(null);
 
-    const SELECTIONS_MINIMUM = 6;
-
-    // --- LÓGICA DE POLLING ---
     useEffect(() => {
         if (isWaitingForResults) {
-            const pollForResult = async () => {
-                try {
-                    console.log("Polling for results...");
-                    const res = await fetch(`${API_BASE_URL}/api/behavioral-test/result/${testId}`);
-                    const { data } = await res.json();
-                    
-                    if (res.ok && data.status === 'Concluído') {
-                        setResultData(data);
-                        setIsWaitingForResults(false); // Para o polling
-                    }
-                } catch (err) {
-                    console.error("Polling error:", err);
+            ws.current = new WebSocket(WS_URL);
+
+            ws.current.onopen = () => {
+                console.log('[WebSocket] Conectado ao servidor.');
+                ws.current?.send(JSON.stringify({ type: 'subscribe', testId }));
+            };
+
+            ws.current.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                if (message.type === 'result_ready') {
+                    console.log('[WebSocket] Resultado recebido!', message.data);
+                    setResultData(message.data);
+                    setIsWaitingForResults(false);
+                    ws.current?.close();
                 }
             };
-            
-            pollingIntervalRef.current = setInterval(pollForResult, 5000); // Verifica a cada 5 segundos
+
+            ws.current.onclose = () => {
+                console.log('[WebSocket] Conexão fechada.');
+            };
+
+            ws.current.onerror = (err) => {
+                console.error('[WebSocket] Erro:', err);
+                setError("Ocorreu um erro na comunicação em tempo real. Por favor, atualize a página para ver seu resultado.");
+                setIsWaitingForResults(false);
+            };
         }
 
-        // Limpeza: para o polling se o componente for desmontado
         return () => {
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
+            if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+                ws.current.close();
             }
         };
     }, [isWaitingForResults, testId]);
-
 
     useEffect(() => {
         const fetchTestData = async () => {
@@ -111,22 +120,19 @@ const PublicTestPage: React.FC<{ testId: string }> = ({ testId }) => {
                 body: JSON.stringify({ testId, responses: { step1: step1Answers, step2: step2Answers } }),
             });
             
-            // O backend agora responde rápido (202 Accepted)
             if (response.status !== 202) {
                 const data = await response.json();
                 throw new Error(data.error || 'Falha ao enviar o teste.');
             }
 
-            // Inicia o estado de espera e o polling
             setIsWaitingForResults(true);
 
         } catch (err: any) {
             setError(err.message);
-            setIsSubmitting(false); // Permite tentar novamente em caso de erro no envio
+            setIsSubmitting(false);
         }
     };
     
-    // --- LÓGICA DE RENDERIZAÇÃO ATUALIZADA ---
     if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-100"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>;
     if (isWaitingForResults && !resultData) return <ProcessingState />;
     if (resultData) return <CandidateResultDisplay result={resultData} candidateName={candidateName} />;
