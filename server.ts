@@ -715,6 +715,42 @@ app.get('/api/behavioral-test/result/:testId', async (req: Request, res: Respons
     }
 });
 
+// NOVA ABORDAGEM ASSÍNCRONA PARA A ROTA DE SUBMISSÃO
+app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
+    const { testId, responses } = req.body;
+    if (!testId || !responses) {
+        return res.status(400).json({ error: 'ID do teste e respostas são obrigatórios.' });
+    }
+
+    try {
+        // Passo 1: Atualiza o status para 'Processando' no banco de dados.
+        await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), {
+            data_de_resposta: new Date().toISOString(),
+            respostas: JSON.stringify(responses),
+            status: 'Processando', 
+        });
+
+        // Passo 2: Dispara o webhook para o N8N, mas NÃO espera (fire-and-forget).
+        const webhookPayload = { testId: parseInt(testId), responses };
+        fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload),
+        }).catch(err => {
+            // Se o webhook falhar, apenas logamos o erro. O processo não para.
+            console.error(`[Server] Erro ao disparar webhook para Teste ID ${testId}:`, err);
+        });
+
+        // Passo 3: Responde IMEDIATAMENTE ao frontend com status 202 (Accepted).
+        // Isto resolve o erro 502 Bad Gateway.
+        res.status(202).json({ success: true, message: "Teste recebido e está sendo processado." });
+
+    } catch (error: any) {
+        console.error(`[Server] Erro ao submeter Teste ID ${testId}:`, error.message);
+        res.status(500).json({ error: 'Não foi possível enviar seu teste.' });
+    }
+});
+
 app.listen(port, () => {
   console.log(`Backend rodando em http://localhost:${port}`);
 });
