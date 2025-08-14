@@ -1,6 +1,4 @@
-// Caminho: src/App.tsx
-// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
-
+// CÓDIGO COMPLETO DO ARQUIVO
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './features/auth/hooks/useAuth';
 import { useNavigation } from './shared/hooks/useNavigation';
@@ -14,15 +12,12 @@ import ResultsPage from './features/results/components/ResultsPage';
 import SettingsPage from './features/settings/components/SettingsPage';
 import { LoginCredentials, SignUpCredentials } from './features/auth/types';
 import { JobPosting } from './features/screening/types';
-import { Candidate } from './shared/types';
 import { Loader2 } from 'lucide-react';
 import CandidateDatabasePage from './features/database/components/CandidateDatabasePage';
 import AgendaPage from './features/agenda/components/AgendaPage';
 import { useDataStore } from './shared/store/useDataStore';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-
-// IMPORT CORRIGIDO USANDO O ARQUIVO INDEX.TS
 import { 
   PublicTestPage, 
   BehavioralTestsListPage, 
@@ -60,7 +55,7 @@ function App() {
   const handleViewResults = (job: JobPosting) => { setSelectedJob(job); navigateTo('results'); };
   const handleEditJob = (job: JobPosting) => { setSelectedJob(job); navigateTo('edit-screening'); };
   const handleJobCreated = (newJob: JobPosting) => { useDataStore.getState().addJob(newJob); setSelectedJob(newJob); navigateTo('results'); };
-  const handleJobUpdated = (updatedJob: JobPosting) => { useDataStore.getState().updateJobInStore(updatedJob); navigateTo('dashboard'); };
+  const handleJobUpdated = () => { navigateTo('dashboard'); };
   const handleDeleteJob = async (jobId: number) => { try { await deleteJobById(jobId); } catch (error) { console.error("Erro ao deletar vaga:", error); alert("Não foi possível excluir a vaga."); } };
   
   const handleViewTestResult = (testId: number) => {

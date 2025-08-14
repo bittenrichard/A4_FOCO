@@ -1,6 +1,4 @@
-// Caminho: src/features/results/components/CandidateDetailModal.tsx
-// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
-
+// CÓDIGO COMPLETO DO ARQUIVO
 import React, { useState } from 'react';
 import { X, User, Star, Briefcase, FileText, Download, CalendarPlus, ChevronDown, RefreshCcw, ClipboardList, Mail, Copy, Check, BrainCircuit } from 'lucide-react';
 import { Candidate } from '../../../shared/types';
@@ -91,7 +89,6 @@ const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ candidate, 
             
             {!generatedLink ? (
             <>
-                {/* --- SEÇÃO DE INDICADORES COM PERFIL COMPORTAMENTAL --- */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-gray-50 p-4 rounded-lg col-span-1"><div className="flex items-center text-gray-500 mb-1"><Star size={16} className="mr-2" /><span className="text-sm font-semibold">Score</span></div><p className={`text-3xl font-bold ${getScoreColor(candidate.score)}`}>{candidate.score ?? 'N/A'}%</p></div>
                     <div className="bg-gray-50 p-4 rounded-lg col-span-1"><div className="flex items-center text-gray-500 mb-1"><Briefcase size={16} className="mr-2" /><span className="text-sm font-semibold">Vaga</span></div><p className="text-lg font-semibold text-gray-800 truncate">{candidate.vaga && candidate.vaga[0] ? candidate.vaga[0].value : 'N/A'}</p></div>

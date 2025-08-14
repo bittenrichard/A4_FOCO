@@ -1,6 +1,4 @@
-// Caminho: src/features/behavioral/components/BehavioralResultPage.tsx
-// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
-
+// CÓDIGO COMPLETO DO ARQUIVO
 import React, { useState, useEffect, useCallback } from 'react';
 import { BehavioralTestResult } from '../types';
 import { Loader2, AlertTriangle, Calendar, CheckCircle, BrainCircuit, Star, BarChart2 } from 'lucide-react';

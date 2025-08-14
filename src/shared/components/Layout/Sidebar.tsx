@@ -1,6 +1,4 @@
-// Caminho: src/shared/components/Layout/Sidebar.tsx
-// CÓDIGO COMPLETO DO ARQUIVO PARA SUBSTITUIÇÃO
-
+// CÓDIGO COMPLETO DO ARQUIVO
 import React from 'react';
 import { LayoutDashboard, PlusCircle, Settings, LogOut, ChevronsLeft, ChevronsRight, Database, Calendar, ClipboardList } from 'lucide-react';
 import { PageKey } from '../../types';

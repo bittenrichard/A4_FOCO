@@ -1,5 +1,4 @@
-// Local: server.ts
-
+// CÓDIGO COMPLETO DO ARQUIVO
 import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
@@ -637,6 +636,8 @@ app.post('/api/google/calendar/create-event', async (req: Request, res: Response
   }
 });
 
+// --- NOVOS ENDPOINTS PARA O TESTE COMPORTAMENTAL ---
+
 app.post('/api/behavioral-test/generate', async (req: Request, res: Response) => {
   const { candidateId, recruiterId } = req.body;
   if (!candidateId || !recruiterId) {
@@ -657,7 +658,6 @@ app.post('/api/behavioral-test/generate', async (req: Request, res: Response) =>
   }
 });
 
-// --- VERSÃO FINAL E ROBUSTA ---
 app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => {
     const { testId, responses } = req.body;
     if (!testId || !responses) {
@@ -665,7 +665,6 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
     }
 
     try {
-        // Passo 1: Salva apenas os dados essenciais, removendo a atualização de 'status'.
         const dataToPatch = {
             data_de_resposta: new Date().toISOString(),
             respostas: JSON.stringify(responses),
@@ -673,13 +672,11 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
         
         await baserowServer.patch(TESTE_COMPORTAMENTAL_TABLE_ID, parseInt(testId), dataToPatch);
 
-        // Passo 2: Monta o payload para o webhook.
         const webhookPayload = {
             testId: parseInt(testId),
             responses,
         };
 
-        // Passo 3: Dispara o webhook ("Fire and Forget").
         fetch(TESTE_COMPORTAMENTAL_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -688,14 +685,12 @@ app.patch('/api/behavioral-test/submit', async (req: Request, res: Response) => 
             console.error(`ERRO AO DISPARAR WEBHOOK para Teste ID: ${testId}:`, webhookError);
         });
 
-        // Passo 4: Retorna sucesso imediatamente para o usuário.
         res.status(200).json({ success: true, message: 'Teste enviado para análise.' });
 
     } catch (error: any) {
-        // Este erro agora só deve acontecer se a escrita no Baserow falhar.
         console.error(`ERRO GRAVE ao salvar respostas do Teste ID ${testId}:`, error.message);
-        if (error.response && error.response.data) {
-            console.error("Detalhes da API (Baserow):", JSON.stringify(error.response.data, null, 2));
+        if ((error as any).response && (error as any).response.data) {
+            console.error("Detalhes da API (Baserow):", JSON.stringify((error as any).response.data, null, 2));
         }
         res.status(500).json({ error: 'Erro ao salvar as respostas do teste.' });
     }

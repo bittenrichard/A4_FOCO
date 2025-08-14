@@ -1,5 +1,4 @@
-// Local: src/features/behavioral/components/PublicTestPage.tsx
-
+// CÓDIGO COMPLETO DO NOVO ARQUIVO
 import React, { useState, useEffect, useRef } from 'react';
 import { ADJECTIVES_STEP_1, ADJECTIVES_STEP_2 } from '../data/questions';
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
@@ -34,7 +33,6 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
     const SELECTIONS_MINIMUM = 6;
 
     useEffect(() => {
-        // Efeito de scroll para o topo, garantindo que funcione sempre que o passo mudar.
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }, [step]);
 
@@ -126,7 +124,6 @@ const PublicTestPage: React.FC<PublicTestPageProps> = ({ testId }) => {
 
                 <div className="my-6"><ProgressBar progress={progress} /></div>
 
-                {/* --- AJUSTE APLICADO AQUI (key={step}) --- */}
                 <div className="fade-in" key={step}>
                     <div className="bg-gray-50 p-6 rounded-lg border">
                         <h2 className="text-lg font-semibold text-gray-900">{step === 1 ? 'Como os outros te veem?' : 'Como você se vê?'}</h2>
